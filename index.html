@@ -622,6 +622,9 @@ function drawChart(){
       const h = it.prev != null ? 24 : 12, L = used[it.i] = used[it.i] || [];
       let bt = it.pt.y - 6;
       for(let k = 0; k < 30; k++){ const hit = L.find(([t, b2]) => bt - h < b2 && bt > t); if(!hit) break; bt = hit[0] - 1; }
+      // 위로 밀다가 그래프 위쪽 밖으로 나가면 점 아래쪽에 놓는다
+      if(bt - h < 2){ bt = it.pt.y + 8 + h;
+        for(let k = 0; k < 30; k++){ const hit = L.find(([t, b2]) => bt - h < b2 && bt > t); if(!hit) break; bt = hit[1] + 1 + h; } }
       L.push([bt - h, bt]);
       const {v, prev, pt, st} = it;
       if(st){ ctx.fillStyle = tick; ctx.fillText(st === 'end' ? '딜 종료' : '100위권 밖', pt.x, bt); return; }

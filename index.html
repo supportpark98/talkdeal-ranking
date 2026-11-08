@@ -102,6 +102,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       </div>
     </div>
     <div class="rangeinfo" id="rangeinfo"></div>
+    <div class="rangeinfo">매일 10시, 18시, 24시(자정)에 수집해요. GitHub 예약 실행 특성상 몇 분에서 수십 분 늦게 수집될 수 있어요.</div>
   </section>
 
   <section class="tiles" id="tiles"></section>
@@ -187,47 +188,73 @@ const kms = (y,m,d,h=0) => Date.UTC(y, m-1, d, h) - KST;
 const pad = n => String(n).padStart(2,'0');
 const ymd = v => v ? kms(+v.slice(0,4), +v.slice(4,6), +v.slice(6,8), +v.slice(8,10)||0) + (+v.slice(10,12)||0)*6e4 : null;  // YYYYMMDDHHMMSS (한국 시간)
 const mdLab = ms => { if(ms==null) return '-'; const p = kparts(ms); return `${p.m}/${p.d}`; };
-const lab = ms => { const p = kparts(ms); return `${p.m}/${p.d} ${pad(p.h)}시`; };
+const lab = ms => { const p = kparts(ms), mi = new Date(ms + KST).getUTCMinutes(); return `${p.m}/${p.d} ${pad(p.h)}:${pad(mi)}`; };
 const dayKey = ms => { const p = kparts(ms - 2*36e5); return kms(p.y,p.m,p.d); };   // 자정~2시 수집분은 전날
 const weekKey = ms => { const k = dayKey(ms), p = kparts(k); return k - ((p.dow+6)%7)*DAY; }; // 월요일 시작
 
 async function getJSON(p){ const r = await fetch(p, {cache:'no-cache'}); if(!r.ok) throw new Error(p+' '+r.status); return r.json(); }
 
-// ---- 날짜 선택 (년/월/일/시 드롭다운) ----
-function buildPicker(el, which){
+// ---- 날짜 선택 (년/월/일 + 수집 시간) ----
+// 정기 수집 시간. 예약 실행이 늦어질 수 있어 각 시간 앞뒤로 넉넉한 구간을 잡는다 (시 단위, 그날 0시 기준).
+const SLOTS = [
+  {id:'10', label:'10시', from:6,  to:14},
+  {id:'18', label:'18시', from:14, to:22},
+  {id:'24', label:'24시', from:22, to:30},   // 24시 수집 = 다음날 0시 무렵
+];
+// 임시 테스트 수집 (테스트가 끝나면 지울 것). 해당 날짜에만 선택지로 나온다.
+const TEST_SLOTS = [
+  {id:'t1', label:'테스트시간1', date:'2026-11-08', from:'17:30', to:'17:38'},
+  {id:'t2', label:'테스트시간2', date:'2026-11-08', from:'17:38', to:'17:55'},
+];
+const hm = v => { const [h, m] = v.split(':'); return (+h)*36e5 + (+m)*6e4; };
+function slotsFor(y, m, d){
+  const key = `${y}-${pad(m)}-${pad(d)}`, day = kms(y, m, d);
+  const out = SLOTS.map(sl => ({id:sl.id, label:sl.label, from: day + sl.from*36e5, to: day + sl.to*36e5}));
+  TEST_SLOTS.filter(t => t.date === key).forEach(t => out.push({id:t.id, label:t.label, from: day + hm(t.from), to: day + hm(t.to), test:true}));
+  return out.sort((a,b) => a.from - b.from || (a.test?1:-1));
+}
+function buildPicker(el){
   const first = kparts(S.index.firstMs), last = kparts(S.index.lastMs);
   const years = []; for(let y=first.y; y<=last.y; y++) years.push(y);
   el.innerHTML = `
     <select data-p="y">${years.map(y=>`<option value="${y}">${y}년</option>`).join('')}</select>
     <select data-p="m">${Array.from({length:12},(_,i)=>`<option value="${i+1}">${i+1}월</option>`).join('')}</select>
     <select data-p="d"></select>
-    <select data-p="h">${Array.from({length:24},(_,i)=>`<option value="${i}">${pad(i)}시</option>`).join('')}</select>`;
+    <select data-p="h"></select>`;
   el.querySelectorAll('select').forEach(s => s.onchange = () => { fillDays(el); readPickers(); });
 }
+const pv = (el, k) => +el.querySelector(`[data-p=${k}]`).value;
 function fillDays(el){
-  const y = +el.querySelector('[data-p=y]').value, m = +el.querySelector('[data-p=m]').value;
+  const y = pv(el,'y'), m = pv(el,'m');
   const ds = el.querySelector('[data-p=d]'), keep = +ds.value || 1, n = new Date(Date.UTC(y, m, 0)).getUTCDate();
   ds.innerHTML = Array.from({length:n},(_,i)=>`<option value="${i+1}">${i+1}일</option>`).join('');
   ds.value = Math.min(keep, n);
-}
-function setPicker(el, ms){
-  const p = kparts(ms), set = (k,v) => el.querySelector(`[data-p=${k}]`).value = v;
-  set('y', p.y); set('m', p.m); fillDays(el); set('d', p.d); set('h', p.h);
+  const hs = el.querySelector('[data-p=h]'), keepH = hs.value || '10', sl = slotsFor(y, m, +ds.value);
+  hs.innerHTML = sl.map(x => `<option value="${x.id}">${x.label}</option>`).join('');
+  hs.value = sl.some(x => x.id === keepH) ? keepH : '10';
 }
 function getPicker(el){
-  const g = k => +el.querySelector(`[data-p=${k}]`).value;
-  return kms(g('y'), g('m'), g('d'), g('h'));
+  const y = pv(el,'y'), m = pv(el,'m'), d = pv(el,'d'), id = el.querySelector('[data-p=h]').value;
+  const all = slotsFor(y, m, d), sl = all.find(x => x.id === id) || all[0];
+  return {day: kms(y, m, d), from: sl.from, to: sl.to};
+}
+function setPicker(el, ms){
+  // ms가 들어가는 날짜/수집 시간을 고른다 (테스트 구간 우선, 새벽은 전날 24시)
+  let p = kparts(ms), sl = slotsFor(p.y, p.m, p.d);
+  let hit = sl.filter(x => ms >= x.from && ms < x.to).sort((a,b) => (b.test?1:0) - (a.test?1:0))[0];
+  if(!hit){ p = kparts(ms - DAY); sl = slotsFor(p.y, p.m, p.d); hit = sl.find(x => ms >= x.from && ms < x.to); }
+  const set = (k,v) => el.querySelector(`[data-p=${k}]`).value = v;
+  set('y', p.y); set('m', p.m); fillDays(el); set('d', p.d); fillDays(el);
+  set('h', hit ? hit.id : '10');
 }
 function readPickers(){
-  let s = getPicker($('#startPick')), e = getPicker($('#endPick')) + 36e5 - 1;  // 종료 시각은 그 시간 끝까지 포함
-  if(s > e){ [s, e] = [e - 36e5 + 1, s + 36e5 - 1]; setPicker($('#startPick'), s); setPicker($('#endPick'), e); }
-  setRange(s, e);
-}
-function setRange(s, e, syncPickers){
-  S.start = s; S.end = e;
-  if(syncPickers){ setPicker($('#startPick'), s); setPicker($('#endPick'), e); }
+  let a = getPicker($('#startPick')), b = getPicker($('#endPick'));
+  if(b.to <= a.from){ setPicker($('#endPick'), a.from); b = getPicker($('#endPick')); }
+  S.startDay = a.day; S.endDay = b.day;
+  S.start = a.from; S.end = b.to - 1;
   update();
 }
+function setRange(s, e){ setPicker($('#startPick'), s); setPicker($('#endPick'), e); readPickers(); }
 
 // ---- 데이터 로딩 ----
 async function ensureMonths(s, e){
@@ -255,8 +282,7 @@ function product(id){ return S.products[id] || {}; }
 async function update(){
   await ensureMonths(S.start, S.end);
   S.inRange = S.snaps.filter(s => s.t >= S.start && s.t <= S.end);
-  const calDay = ms => { const p = kparts(ms); return kms(p.y,p.m,p.d); };
-  const multiDay = calDay(S.start) !== calDay(S.end);
+  const multiDay = S.startDay !== S.endDay;
   $('#gran').style.display = multiDay ? '' : 'none';
   if(!multiDay) S.gran = 'hour';
   else if(S._wasSingle !== false && S.gran === 'hour') S.gran = 'day';
@@ -482,21 +508,18 @@ async function init(){
   $$('#metric button').forEach(b => b.onclick = () => { S.metric = b.dataset.m; $$('#metric button').forEach(x=>x.classList.toggle('on', x===b)); drawChart(); });
   $$('#gran button').forEach(b => b.onclick = () => { S.gran = b.dataset.g; $$('#gran button').forEach(x=>x.classList.toggle('on', x===b)); drawChart(); });
 
-  const last = S.index.lastMs, endHour = (() => { const p = kparts(last); return kms(p.y,p.m,p.d,p.h) + 36e5 - 1; })();
-  const firstHour = (() => { const p = kparts(S.index.firstMs); return kms(p.y,p.m,p.d,p.h); })();
-  const todayAt10 = ms => { const p = kparts(ms); return kms(p.y,p.m,p.d,10); };
+  const last = S.index.lastMs, first = S.index.firstMs;
+  const at10 = ms => { const p = kparts(ms); return kms(p.y,p.m,p.d,10); };
   $$('[data-q]').forEach(b => b.onclick = () => {
     const q = b.dataset.q;
-    const s = q==='today' ? todayAt10(last) : q==='all' ? S.index.firstMs : todayAt10(last) - (+q-1)*DAY;
-    setRange(Math.min(Math.max(s, firstHour), last), endHour, true);
+    const st = q==='today' ? at10(last) : q==='all' ? first : at10(last) - (+q-1)*DAY;
+    setRange(q==='all' ? first : st, last);
   });
 
-  // 기본값: 오늘 10시 ~ 가장 최근 수집. 오늘 10시 이전이면 전날 10시부터.
-  let start = todayAt10(Date.now());
-  if(start > last) start = todayAt10(last);
-  if(start > last) start -= DAY;
-  start = Math.max(start, firstHour);
-  setRange(start, endHour, true);
+  // 기본값: 오늘 10시 ~ 가장 최근 수집. 오늘 데이터가 아직 없으면 마지막 수집일 10시부터.
+  let start = at10(Date.now());
+  if(start > last) start = at10(last);
+  setRange(start, last);
 }
 init();
 </script>

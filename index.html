@@ -369,7 +369,7 @@ async function update(){
   });
   $('#basis').textContent = `${S.cat.name} · 마지막 수집 ${slotLab(S.index.lastMs)}`;
   $('#rangeinfo').textContent = '';
-  $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `*변동은 기간 시작(${slotLab(S.base.t)}) 대비, 표는 ${slotLab(S.cur.t)} 기준` : `*변동은 직전 수집(${slotLab(S.base.t)}) 대비`;
+  $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `*변동은 기간 시작(${slotLab(S.base.t)}) 대비, 표는 종료(${slotLab(S.cur.t)}) 기준` : `*변동은 직전 수집(${slotLab(S.base.t)}) 대비`;
   if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
     S.picked = S.cur.rows.slice(0,5).map(r=>String(r.productId));
   tiles(); render(); drawChart();

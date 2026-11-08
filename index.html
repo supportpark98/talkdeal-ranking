@@ -109,7 +109,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   <section class="card">
     <div class="range">
       <div class="grp"><span class="lbl">시작</span><span id="startPick"></span></div>
-      <div class="grp"><span class="lbl">종료</span><span id="endPick"></span><button id="reset" class="textbtn" title="오늘 10시 ~ 최근 수집으로 되돌리기">↺ 초기화</button></div>
+      <div class="grp"><span class="lbl">종료</span><span id="endPick"></span><button id="reset" class="textbtn" title="오늘 첫 수집 ~ 최근 수집으로 되돌리기">↺ 초기화</button></div>
       <div class="quick">
         <button data-q="today">오늘</button>
         <button data-q="7">최근 7일</button>
@@ -123,7 +123,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <input id="cq" type="search" placeholder="브랜드 또는 키워드 검색, 쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)">
     </div>
     <div class="rangeinfo" id="rangeinfo"></div>
-    <div class="rangeinfo">*랭킹 데이터는 일간 기준으로 매일 10시, 18시, 24시(자정) 자동으로 수집됩니다.</div>
+    <div class="rangeinfo">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</div>
   </section>
 
   <section class="tiles" id="tiles"></section>
@@ -173,12 +173,12 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   </section>
 </main>
 <footer>
-  매일 10시, 18시, 24시 집계분을 자동 수집 · 출처: 카카오 톡딜 랭킹<br>
+  매일 9시, 16시, 18시, 23시 집계분을 자동 수집 · 출처: 카카오 톡딜 랭킹<br>
   카카오가 정각 집계를 약 40분 뒤에 반영해서, 실제 수집은 각 정각의 약 50분 뒤에 이뤄집니다.<br>
   <span id="since"></span><br>
   추정매출 = 톡딜가 × 주문수 (옵션별 가격 차이는 반영되지 않은 추정치)<br>
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
-  일/주 단위는 해당 기간의 마지막 수집값 기준이며, 24시(자정) 수집분은 전날로 셉니다.
+  일/주 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -216,9 +216,11 @@ async function getJSON(p){ const r = await fetch(p, {cache:'no-cache'}); if(!r.o
 // ---- 날짜 선택 (년/월/일 + 수집 시간) ----
 // 정기 수집 시간. 예약 실행이 늦어질 수 있어 각 시간 앞뒤로 넉넉한 구간을 잡는다 (시 단위, 그날 0시 기준).
 const SLOTS = [
-  {id:'10', label:'10시', from:6,  to:14},
-  {id:'18', label:'18시', from:14, to:22},
-  {id:'24', label:'24시', from:22, to:30},   // 24시 수집 = 다음날 0시 무렵
+  {id:'9',  label:'9시',  from:6,    to:13},
+  {id:'16', label:'16시', from:13,   to:17.5},
+  {id:'18', label:'18시', from:17.5, to:21},
+  {id:'23', label:'23시', from:21,   to:24.5},  // 23:50 수집, 백업은 다음날 0:10
+  {id:'24', label:'24시', from:24.5, to:30},    // 예전 일정(2026-11-08까지)의 00:50 수집분. 데이터가 있는 날에만 보인다.
 ];
 // 임시 테스트 수집 시간이 필요할 때 {id, label, date:"YYYY-MM-DD", from:"HH:MM", to:"HH:MM"} 형식으로 추가. 해당 날짜에만 선택지로 나온다.
 const TEST_SLOTS = [
@@ -656,14 +658,14 @@ async function init(){
   $$('#gran button').forEach(b => b.onclick = () => { S.gran = b.dataset.g; $$('#gran button').forEach(x=>x.classList.toggle('on', x===b)); drawChart(); });
 
   const last = S.index.lastMs, first = S.index.firstMs;
-  const at10 = ms => { const p = kparts(ms); return kms(p.y,p.m,p.d,10); };
+  const at10 = ms => { const p = kparts(ms); return kms(p.y,p.m,p.d,9); };   // 그날 첫 수집(9시)
   $$('[data-q]').forEach(b => b.onclick = () => {
     const q = b.dataset.q;
     const st = q==='today' ? at10(last) : q==='all' ? first : at10(last) - (+q-1)*DAY;
     setRange(Math.max(q==='all' ? first : st, first), last);
   });
 
-  // 기본값: 오늘 10시 ~ 가장 최근 수집. 오늘 데이터가 아직 없으면 마지막 수집일 10시부터.
+  // 기본값: 오늘 9시 ~ 가장 최근 수집. 오늘 데이터가 아직 없으면 마지막 수집일 9시부터.
   const resetRange = () => {
     let start = at10(Date.now());
     if(start > last) start = at10(last);

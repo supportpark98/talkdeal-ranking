@@ -673,7 +673,8 @@ async function init(){
     if(start > last) start = at10(last);
     setRange(Math.max(start, first), last);
   };
-  $('#reset').onclick = resetRange;
+  // 초기화: 기간과 함께 톡딜상품 여부/세부 카테고리/검색어도 처음 상태로
+  $('#reset').onclick = () => { $('#deal').value = ''; $('#csub').value = ''; $('#cq').value = ''; resetRange(); };
   resetRange();
 }
 init();

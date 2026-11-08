@@ -63,6 +63,42 @@ def fetch(cat, size, retries=3, period="DAILY"):
     raise RuntimeError(f"{cat} 수집 실패: {last_err}")
 
 
+# 랭킹 API는 일부 톡딜 상품의 최대혜택가(maxDiscountedPrice)를 빼고 보낸다 (랭킹 집계 뒤에 켜진 혜택 등).
+# 상품 페이지가 쓰는 최대혜택가 API로 비어 있는 값만 채운다. 한 번에 20개까지.
+MAX_DISCOUNT_API = "https://store.kakao.com/a/discounts/api/max-discount?"
+
+
+def fetch_max_discount(ids):
+    out = {}
+    for i in range(0, len(ids), 20):
+        chunk = ids[i:i + 20]
+        url = MAX_DISCOUNT_API + "&".join(f"productIds={x}" for x in chunk) + f"&_={int(time.time() * 1000)}"
+        req = urllib.request.Request(url, headers=HEADERS)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = json.load(resp)
+        for pr in (body.get("data") or {}).get("prices", []):
+            if pr.get("maxDiscountPrice") is not None:
+                out[pr.get("productId")] = pr["maxDiscountPrice"]
+    return out
+
+
+def fill_max_benefit(rows, cache):
+    """톡딜 상품 중 최대혜택가가 빠진 행을 채운다. 실패해도 수집은 계속한다. cache는 카테고리 사이에서 공유."""
+    need = [r["productId"] for r in rows
+            if r.get("ordering") is not None and r.get("maxBenefitPrice") is None and r["productId"] not in cache]
+    if need:
+        try:
+            cache.update(fetch_max_discount(need))
+        except Exception as e:  # noqa: BLE001
+            print(f"::warning::최대혜택가 보충 실패: {e}")
+    n = 0
+    for r in rows:
+        if r.get("ordering") is not None and r.get("maxBenefitPrice") is None and r["productId"] in cache:
+            r["maxBenefitPrice"] = cache[r["productId"]]
+            n += 1
+    return n
+
+
 def pick(p):
     """화면의 표시값과 같은 필드만 골라 (행, 상품정보)로 나눈다.
 
@@ -183,6 +219,7 @@ def main():
             return
     t_iso = datetime.now(KST).isoformat(timespec="seconds")
     failed = []
+    mx_cache = {}
     for c in targets:
         try:
             data = fetch(c["key"], args.size)
@@ -191,8 +228,9 @@ def main():
                 raise RuntimeError("상품이 0개 (API 응답 형식이 바뀌었을 수 있음)")
             rows = [r for r, _ in picked]
             metas = {str(r["productId"]): m for r, m in picked}
+            filled = fill_max_benefit(rows, mx_cache)
             save_snapshot(args.out, c["key"], t_iso, data.get("aggregatedAt"), rows, metas)
-            print(f"{c['name']}: {len(rows)}개 (집계 {data.get('aggregatedAt')})")
+            print(f"{c['name']}: {len(rows)}개 (집계 {data.get('aggregatedAt')}, 최대혜택가 보충 {filled}개)")
         except Exception as e:  # noqa: BLE001
             failed.append(c["key"])
             print(f"::warning::{c['name']} 실패: {e}")

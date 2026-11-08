@@ -219,7 +219,14 @@ const SLOTS = [
   {id:'24', label:'24시', from:22, to:30},   // 24시 수집 = 다음날 0시 무렵
 ];
 // 임시 테스트 수집 시간이 필요할 때 {id, label, date:"YYYY-MM-DD", from:"HH:MM", to:"HH:MM"} 형식으로 추가. 해당 날짜에만 선택지로 나온다.
-const TEST_SLOTS = [];
+const TEST_SLOTS = [
+  {id:'t1', label:'테스트 17:47', date:'2026-11-08', from:'17:40', to:'17:58'},
+  {id:'t2', label:'테스트 18:02', date:'2026-11-08', from:'18:01', to:'18:04'},
+  {id:'t3', label:'테스트 18:05', date:'2026-11-08', from:'18:04', to:'18:08'},
+  {id:'t4', label:'테스트 18:10', date:'2026-11-08', from:'18:08', to:'18:15'},
+  {id:'t5', label:'테스트 18:20', date:'2026-11-08', from:'18:15', to:'18:25'},
+  {id:'t6', label:'테스트 18:30', date:'2026-11-08', from:'18:25', to:'18:36'},
+];
 const hm = v => { const [h, m] = v.split(':'); return (+h)*36e5 + (+m)*6e4; };
 function slotsFor(y, m, d){
   const key = `${y}-${pad(m)}-${pad(d)}`, day = kms(y, m, d);

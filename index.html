@@ -554,8 +554,8 @@ function drawChart(){
   const upC = cs.getPropertyValue('--up').trim() || '#e5484d', downC = cs.getPropertyValue('--down').trim() || '#2f6fde';
   const deltaLabels = {id:'deltaLabels', afterDatasetsDraw(chart){
     const ctx = chart.ctx; ctx.save(); ctx.font = '600 10px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    // 추정매출/주문수는 점 위에 값, 그 아래에 증감. 선이 많으면(5개 이상) 겹치지 않게 증감만.
-    const showVal = metric !== 'rank' && chart.data.datasets.filter((d, i) => !chart.getDatasetMeta(i).hidden).length <= 4;
+    // 추정매출/주문수는 선 개수와 상관없이 점 위에 값, 그 아래에 증감을 표시한다.
+    const showVal = metric !== 'rank';
     const valTxt = v => metric === 'sales' ? won(v) : fmt(v);
     chart.data.datasets.forEach((ds, di) => {
       const meta = chart.getDatasetMeta(di); if(meta.hidden) return;

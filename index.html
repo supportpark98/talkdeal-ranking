@@ -28,6 +28,13 @@ h1{margin:0;font-size:20px;font-weight:800}
 .tag.rise{background:#fde8e8;color:#c8323a} .tag.live{background:#e5484d;color:#fff}
 .wrap{max-width:1180px;margin:0 auto}
 main{padding:16px}
+/* 맨 위로: PC는 본문 오른쪽 여백, 화면이 좁으면(모바일) 오른쪽 아래에 떠 있게 */
+#toTop{position:fixed;bottom:24px;right:max(16px, calc((100vw - 1180px) / 2 - 64px));width:44px;height:44px;border-radius:50%;
+  border:1px solid var(--line);background:var(--card);color:var(--text);font-size:18px;line-height:1;cursor:pointer;
+  box-shadow:0 2px 8px rgba(0,0,0,.12);opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s;z-index:50}
+#toTop.show{opacity:1;visibility:visible}
+#toTop:hover{background:var(--btn)}
+@media (max-width:640px){#toTop{width:40px;height:40px;bottom:16px;right:12px;font-size:16px}}
 select,input,button{font:inherit;color:var(--text)}
 select,input{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
 button{padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--btn);cursor:pointer}
@@ -188,6 +195,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
   일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
 </footer>
+<button id="toTop" type="button" aria-label="맨 위로" title="맨 위로">↑</button>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
@@ -715,6 +723,11 @@ async function init(){
   resetRange();
 }
 init();
+// 맨 위로 버튼: 조금 내려가면 나타난다
+{ const b = document.getElementById('toTop');
+  const onScroll = () => b.classList.toggle('show', window.scrollY > 400);
+  window.addEventListener('scroll', onScroll, {passive:true}); onScroll();
+  b.onclick = () => window.scrollTo({top:0, behavior:'smooth'}); }
 </script>
 </body>
 </html>

@@ -534,8 +534,9 @@ function drawChart(){
     const txt = id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')).toLowerCase(); };
     const match = [...seen].filter(id => (!ts.length || hit(txt(id), ts)) && (!csub || product(id).category === csub) && (!dealOnly || S.inRange.some(s => s.rows.some(r => String(r.productId) === id && r.ordering != null))));
     S.matchIds = new Set(match);
-    const lastVal = id => { for(let i=bs.length-1;i>=0;i--){ const r = bs[i].map.get(id); if(r) return r.sales||0; } return 0; };
-    match.sort((a,b)=>lastVal(b)-lastVal(a));
+    // 종료 시점 순위가 높은 순. 종료 시점에 랭킹에 없던 상품은 그 뒤에, 마지막으로 보인 시점이 늦고 순위가 높은 순
+    const lastRank = id => { for(let i=bs.length-1;i>=0;i--){ const r = bs[i].map.get(id); if(r) return [bs.length-1-i, r.rank]; } return [1e9, 1e9]; };
+    match.sort((a,b)=>{ const x = lastRank(a), y = lastRank(b); return x[0]-y[0] || x[1]-y[1]; });
     if(sumMode && metric !== 'rank'){
       // 검색어마다 합계 선 하나씩 (예: 브랜드끼리 비교)
       const sumOf = ms => bs.map(b => { let sum = 0, any = false; ms.forEach(id => { const r = b.map.get(id); if(r && r[metric]!=null){ sum += r[metric]; any = true; } }); return any ? sum : null; });
@@ -543,10 +544,10 @@ function drawChart(){
         : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, data: sumOf(match)}];
       hint.textContent = `*검색어별 ${METRIC[metric]} 합계 (순위권 안에 있던 시점만 더함)`;
     } else {
-      // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 추정매출 상위 8개
+      // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 종료 시점 순위 상위 5개
       const mine = S.fpicked;
       ids = mine.length ? mine : match.slice(0,DEFPICK);
-      hint.textContent = mine.length ? '*아래 랭킹 표에서 고른 상품 표시 · 상품을 눌러 추가하거나 뺄 수 있어요 (최대 10개)' : match.length ? `*조건에 맞는 상품 ${match.length}개${match.length>DEFPICK?` 중 추정매출 상위 ${DEFPICK}개`:''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '*조건에 맞는 상품이 없어요';
+      hint.textContent = mine.length ? '*아래 랭킹 표에서 고른 상품 표시 · 상품을 눌러 추가하거나 뺄 수 있어요 (최대 10개)' : match.length ? `*조건에 맞는 상품 ${match.length}개${match.length>DEFPICK?` 중 종료 시점 순위 상위 ${DEFPICK}개`:''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '*조건에 맞는 상품이 없어요';
     }
   } else {
     ids = S.picked;

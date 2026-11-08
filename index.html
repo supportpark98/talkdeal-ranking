@@ -434,8 +434,8 @@ function tiles(){
   const t = (k,v,d) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
   $('#tiles').innerHTML =
     t(on ? `조건 내 1위 브랜드 (전체 ${top.rank}위)` : '1위 브랜드', esc(top.brand), esc(top.name)) +
-    t('순위가 가장 많이 오른 상품', risers[0] ? `<span class="up">▲${risers[0].chg}</span> ${esc(risers[0].brand)}` : '-', risers[0] ? `${risers[0].baseRank}위 → ${risers[0].rank}위` : '상승한 상품 없음') +
-    t('추정매출 가장 많이 늘어난 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`) +
+    t('순위 급상승 상품', risers[0] ? `<span class="up">▲${risers[0].chg}</span> ${esc(risers[0].brand)}` : '-', risers[0] ? `${risers[0].baseRank}위 → ${risers[0].rank}위` : '상승한 상품 없음') +
+    t('매출 급상승 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`) +
     t('순위권 최다 브랜드', esc(most.brand), `총 ${most.n}개`) +
     t('추정매출 최고 브랜드', rich ? esc(rich.brand) : '-', rich ? `총 ${won(rich.sales)}원` : '추정매출 데이터 없음');
 }

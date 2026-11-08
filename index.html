@@ -146,6 +146,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
         <option value="up">순위 상승</option>
         <option value="down">순위 하락</option>
         <option value="new">신규 진입</option>
+        <option value="rising">급상승 표시 상품</option>
       </select>
     </div>
     <div class="tablewrap">
@@ -369,6 +370,7 @@ function tableRows(){
   if(f==='up') rs = rs.filter(r=>r.chg>0 && r.chg!==999);
   if(f==='down') rs = rs.filter(r=>r.chg<0);
   if(f==='new') rs = rs.filter(r=>r.chg===999);
+  if(f==='rising') rs = rs.filter(r=>r.label==='RISING_PRODUCT');
   const {k,dir} = S.sort;
   return [...rs].sort((a,b)=>{ const x=a[k], y=b[k]; if(x==null) return 1; if(y==null) return -1; return (typeof x==='string' ? x.localeCompare(y,'ko') : x-y)*dir; });
 }
@@ -391,7 +393,7 @@ function render(){
       <td class="num">${fmt(r.price)}원</td>
       <td class="num benefit">${r.maxBenefitPrice ? fmt(r.maxBenefitPrice)+'원' : '-'}</td>
       <td class="num disc">${r.discountRate ? Math.round(r.discountRate)+'%' : '-'}</td>
-    </tr>`).join('') : '<tr><td colspan="12" class="empty">조건에 맞는 상품이 없어요</td></tr>';
+    </tr>`).join('') : `<tr><td colspan="12" class="empty">${!S.base && ['up','down','new'].includes($('#filter').value) ? '비교할 이전 수집이 없어서 순위 변동을 아직 알 수 없어요. 다음 수집부터 보여요.' : '조건에 맞는 상품이 없어요'}</td></tr>`;
   $$('#rows tr[data-id]').forEach(tr => tr.onclick = e => {
     if(e.target.closest('a')) return;
     const id = tr.dataset.id, i = S.picked.indexOf(id);

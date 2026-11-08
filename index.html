@@ -423,16 +423,22 @@ function tiles(){
   const ts = terms($('#cq').value), sc = $('#csub').value, dl = !!$('#deal').value, on = ts.length || sc || dl;
   const rs = S.cur.rows.filter(r => (!ts.length || hit(((r.name||'')+' '+(r.brand||'')).toLowerCase(), ts)) && (!sc || r.category === sc) && (!dl || r.ordering != null)), top = rs[0];
   if(!top){ $('#tiles').innerHTML = '<div class="tile"><div class="k">요약</div><div class="v">-</div><div class="d">조건에 맞는 상품이 없어요</div></div>'; return; }
-  const news = S.base ? rs.filter(r=>r.chg===999) : [];
+  // 브랜드별 상품 수 / 추정매출 합계 (같으면 더 높은 순위의 브랜드 먼저)
+  const B = new Map();
+  rs.forEach(r => { const k = r.brand || '-', b = B.get(k) || {brand:k, n:0, sales:0, best:r.rank}; b.n++; b.sales += r.sales || 0; b.best = Math.min(b.best, r.rank); B.set(k, b); });
+  const brands = [...B.values()];
+  const most = brands.slice().sort((a,b)=>b.n-a.n || a.best-b.best)[0];
+  const rich = brands.filter(b=>b.sales>0).sort((a,b)=>b.sales-a.sales || a.best-b.best)[0];
   const risers = rs.filter(r=>r.chg>0 && r.chg!==999).sort((a,b)=>b.chg-a.chg);
   const hot = rs.filter(r=>r.dSales!=null).sort((a,b)=>b.dSales-a.dSales)[0];
   const total = rs.reduce((a,r)=>a+(r.sales||0),0);
   const t = (k,v,d) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
   $('#tiles').innerHTML =
-    t(on ? `조건 내 1위 (전체 ${top.rank}위)` : '1위', esc(top.brand), esc(top.name)) +
-    t('가장 많이 오른 상품', risers[0] ? `<span class="up">▲${risers[0].chg}</span> ${esc(risers[0].brand)}` : '-', risers[0] ? `${risers[0].baseRank}위 → ${risers[0].rank}위` : '상승한 상품 없음') +
-    t('신규 진입', S.base ? `${news.length}개` : '-', news.slice(0,3).map(r=>esc(r.brand)).join(', ') || ' ') +
-    t('추정매출 가장 많이 늘어난 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`);
+    t(on ? `조건 내 1위 브랜드 (전체 ${top.rank}위)` : '1위 브랜드', esc(top.brand), esc(top.name)) +
+    t('순위가 가장 많이 오른 상품', risers[0] ? `<span class="up">▲${risers[0].chg}</span> ${esc(risers[0].brand)}` : '-', risers[0] ? `${risers[0].baseRank}위 → ${risers[0].rank}위` : '상승한 상품 없음') +
+    t('추정매출 가장 많이 늘어난 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`) +
+    t('순위권 최다 브랜드', esc(most.brand), `총 ${most.n}개`) +
+    t('추정매출 최고 브랜드', rich ? esc(rich.brand) : '-', rich ? `총 ${won(rich.sales)}원` : '추정매출 데이터 없음');
 }
 
 // ---- 랭킹 표 ----

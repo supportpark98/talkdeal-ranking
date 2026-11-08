@@ -136,8 +136,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     </div>
     <div class="toolbar searchbar">
       <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
-      <span class="grp"><span class="lbl">세부 카테고리</span><select id="csub"><option value="">전체</option></select></span>
-        <span class="grp" title="테스트용: 추정매출을 어떤 가격으로 계산할지"><span class="lbl">추정매출 기준(테스트)</span><select id="basis2"><option value="deal">톡딜가</option><option value="max">최대혜택가</option></select></span></span>
+      <span class="grp"><span class="lbl">세부 카테고리</span><select id="csub"><option value="">전체</option></select></span></span>
         <span class="qnote">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</span></span>
       <span class="qwrap"><input id="cq" type="search" placeholder="브랜드 또는 키워드 검색"><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
@@ -350,8 +349,7 @@ async function ensureMonths(s, e){
 function accumulateSales(snaps){
   const st = new Map();
   snaps.forEach(sn => sn.rows.forEach(o => {
-    // 테스트 토글: 최대혜택가 기준이면 최대혜택가(없으면 톡딜가)로 계산
-    const price = S.basis === 'max' && o.maxBenefitPrice != null ? o.maxBenefitPrice : o.price;
+    const price = o.price;
     if(price == null || o.ordering == null){ o.sales = null; return; }
     const k = String(o.productId), p = st.get(k);
     const acc = !p || o.ordering < p.ord ? price * o.ordering : p.acc + (o.ordering - p.ord) * price;
@@ -723,7 +721,7 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   
-  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; $('#csub').onchange = () => { tiles(); drawChart(); render(); }; $('#deal').onchange = () => { tiles(); drawChart(); render(); }; $('#basis2').onchange = () => { S.basis = $('#basis2').value; accumulateSales(S.snaps); update(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart;
+  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; $('#csub').onchange = () => { tiles(); drawChart(); render(); }; $('#deal').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart;
   $('#xlsx').onclick = downloadXlsx;
   $$('#cols col').forEach(c => c.dataset.w = c.style.width);
   setupResize();

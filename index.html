@@ -61,6 +61,8 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .searchbar{margin-top:12px;margin-bottom:0}
 .toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
+.chartbar{align-items:center;margin-top:-6px}
+.chartbar .hint{margin:0 auto 0 0}
 .tablewrap{overflow-x:auto}
 table{border-collapse:collapse;table-layout:fixed;width:max-content;min-width:100%}
 th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
@@ -137,11 +139,11 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
         </span>
       </span>
     </h2>
-    <div class="toolbar" style="justify-content:flex-end;margin-top:-6px">
+    <div class="toolbar chartbar">
+      <div class="hint" id="chartHint"></div>
       <label class="chk" id="sumWrap"><input type="checkbox" id="sum"> 검색어별로 합쳐 보기</label>
       <label class="chk" id="top10Wrap"><input type="checkbox" id="top10"> TOP 10만 표시</label>
     </div>
-    <div class="hint" id="chartHint"></div>
     <div class="chartbox"><canvas id="chart"></canvas></div>
   </section>
 
@@ -519,11 +521,11 @@ function drawChart(){
       // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 추정매출 상위 8개
       const mine = S.fpicked;
       ids = mine.length ? mine : match.slice(0,8);
-      hint.textContent = mine.length ? '표에서 고른 상품 표시 · 표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)' : match.length ? `조건에 맞는 상품 ${match.length}개${match.length>8?' 중 추정매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
+      hint.textContent = mine.length ? '아래 랭킹 표에서 고른 상품 표시 · 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)' : match.length ? `조건에 맞는 상품 ${match.length}개${match.length>8?' 중 추정매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
     }
   } else {
     ids = S.picked;
-    hint.textContent = '표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)';
+    hint.textContent = '아래 랭킹 표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)';
   }
   S.shown = ids || [];
   if(!datasets) datasets = ids.map(id => ({

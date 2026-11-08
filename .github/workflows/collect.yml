@@ -21,7 +21,10 @@ jobs:
   collect:
     runs-on: ubuntu-latest
     steps:
+      # 실행이 대기했다가 시작돼도 최신 main(앞 실행이 저장한 데이터 포함)을 받아서 중복 저장을 막는다
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

@@ -2,8 +2,12 @@ name: 톡딜 랭킹 수집
 
 on:
   schedule:
-    # 한국 시간 10시, 18시, 24시 (UTC 01, 09, 15시)
-    - cron: "0 1,9,15 * * *"
+    # 카카오는 정각 집계를 약 40분 뒤에 반영한다. 그래서 50분에 수집하고 다음 시 10분에 백업 수집한다.
+    # 기본 수집: 한국 10:50, 18:50, 00:50 (UTC 01:50, 09:50, 15:50)
+    - cron: "50 1,9,15 * * *"
+    # 백업 수집: 한국 11:10, 19:10, 01:10 (UTC 02:10, 10:10, 16:10). 같은 집계가 이미 있으면 건너뜀
+    - cron: "10 2,10,16 * * *"
+    # 외부 cron(cron-job.org)도 같은 시각에 workflow_dispatch로 실행한다
   workflow_dispatch: {}
 
 permissions:
@@ -22,7 +26,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: 랭킹 수집
-        run: python scripts/collect.py --size 100 --out data --hourly-test
+        run: python scripts/collect.py --size 100 --out data --hourly-test --skip-if-saved
       - name: 결과 커밋
         run: |
           git config user.name "github-actions[bot]"

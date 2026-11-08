@@ -165,9 +165,19 @@ def main():
     ap.add_argument("--cat", action="append", help="특정 카테고리만 (예: CHILD)")
     # 임시: 갱신 시점 테스트용으로 실시간(HOURLY) 전체 랭킹도 data/test_hourly/에 따로 저장 (대시보드에는 안 나옴)
     ap.add_argument("--hourly-test", action="store_true")
+    # 백업 수집용: 카카오 집계 시각(aggregatedAt)이 이미 저장된 마지막 수집과 같으면 저장하지 않고 끝낸다
+    ap.add_argument("--skip-if-saved", action="store_true")
     args = ap.parse_args()
 
     targets = [c for c in CATEGORIES if not args.cat or c["key"] in args.cat]
+    if args.skip_if_saved:
+        agg = fetch(targets[0]["key"], 1).get("aggregatedAt")
+        d = os.path.join(args.out, "monthly", targets[0]["key"])
+        months = sorted(n for n in os.listdir(d) if n.endswith(".json")) if os.path.isdir(d) else []
+        snaps = read_json(os.path.join(d, months[-1]), {}).get("snaps", []) if months else []
+        if snaps and snaps[-1].get("agg") == agg:
+            print(f"집계 {agg}는 이미 저장되어 있어 건너뜀")
+            return
     t_iso = datetime.now(KST).isoformat(timespec="seconds")
     failed = []
     for c in targets:

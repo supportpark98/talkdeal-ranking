@@ -43,6 +43,7 @@ KST = timezone(timedelta(hours=9))
 COLS = [
     "rank", "productId", "price", "discountRate", "ordering",
     "originalPrice", "maxBenefitPrice", "totalSaleCount", "reviewCount", "satisfaction", "label",
+    "liveStartAt",
 ]
 
 
@@ -67,7 +68,7 @@ def pick(p):
     """화면의 표시값과 같은 필드만 골라 (행, 상품정보)로 나눈다.
 
     톡딜 진행 중이면 톡딜가 = groupDiscountedPrice, 할인율 = groupDiscountRate,
-    주문중 = groupDiscountUserCount. 톡딜이 아닌 일반 상품은 주문중 수량이 없다(None).
+    주문중 = groupDiscountUserCount. 정상가 = originalPrice, 최대혜택가 = maxDiscountedPrice. 톡딜이 아닌 일반 상품은 주문중 수량이 없다(None).
     """
     on_deal = p.get("groupDiscountStatus") == "ON_SALE"
     rate = p.get("groupDiscountRate") if on_deal else p.get("discountRate")
@@ -83,6 +84,8 @@ def pick(p):
         "reviewCount": p.get("reviewCount"),
         "satisfaction": p.get("productPositivePercentage"),
         "label": p.get("label"),
+        # 라이브 방송 시작 시각 (YYYYMMDDHHMMSS). 라이브가 없으면 None
+        "liveStartAt": p.get("liveStartAt"),
     }
     meta = {
         "name": p.get("productName"),
@@ -92,6 +95,8 @@ def pick(p):
         "image": p.get("productImage"),
         "brandStore": bool(p.get("isBrandTalkStore")),
         "freeDelivery": bool(p.get("freeDelivery")),
+        # 톡딜 기간 (YYYYMMDDHHMMSS)
+        "dealStart": (p.get("groupDiscountPeriod") or {}).get("from") if on_deal else None,
         "dealEnd": (p.get("groupDiscountPeriod") or {}).get("to") if on_deal else None,
     }
     return row, meta

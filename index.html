@@ -55,7 +55,7 @@ button:disabled{opacity:.5;cursor:default}
 .toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
 .tablewrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;min-width:900px}
+table{width:100%;border-collapse:collapse;min-width:1380px}
 th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
 th{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
 th.sorted{color:var(--text)}
@@ -67,7 +67,10 @@ tbody tr.sel{background:var(--sel)}
 .chg{font-size:12px;font-weight:700;white-space:nowrap;width:52px}
 .up{color:var(--up)} .down{color:var(--down)} .new{color:var(--new)} .same{color:var(--muted)}
 .thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--line);display:block}
-.pname{max-width:380px}
+.pname{max-width:320px;min-width:220px}
+.strike{color:var(--muted);text-decoration:line-through}
+.benefit{color:var(--up);font-weight:700}
+.small{font-size:12px;color:var(--muted);white-space:nowrap}
 .pname a{color:inherit;text-decoration:none;font-weight:600;display:-webkit-box;display:-webkit-inline-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pname a:hover{text-decoration:underline}
 .pname .cat{font-size:12px;color:var(--muted)}
@@ -128,6 +131,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     </h2>
     <div class="toolbar">
       <input id="q" type="search" placeholder="상품명, 브랜드 검색">
+      <select id="subcat"><option value="">세부 카테고리 전체</option></select>
       <select id="filter">
         <option value="all">전체</option>
         <option value="up">순위 상승</option>
@@ -140,10 +144,13 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
         <thead><tr>
           <th data-k="rank" class="num">순위</th><th data-k="chg">변동</th><th></th>
           <th data-k="name">상품명</th><th data-k="brand">브랜드</th>
-          <th data-k="price" class="num">톡딜가</th><th data-k="discountRate" class="num">할인율</th>
+          <th data-k="originalPrice" class="num">정상가</th><th data-k="price" class="num">톡딜가</th>
+          <th data-k="maxBenefitPrice" class="num">최대혜택가</th><th data-k="discountRate" class="num">할인율</th>
           <th data-k="ordering" class="num">주문중</th><th data-k="sales" class="num">예상매출</th>
+          <th data-k="dealStartMs" class="num">딜 시작일</th><th data-k="avgOrdering" class="num">일평균 주문</th>
+          <th data-k="avgSales" class="num">일평균 매출</th><th data-k="liveMs" class="num">라이브 일자</th>
         </tr></thead>
-        <tbody id="rows"><tr><td colspan="9" class="empty">불러오는 중…</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="15" class="empty">불러오는 중…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -151,6 +158,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
 <footer>
   매일 10시, 18시, 24시에 자동 수집 · 출처: 카카오 톡딜 랭킹<br>
   예상매출 = 톡딜가 × 주문중 수량 (옵션별 가격 차이는 반영되지 않은 추정치)<br>
+  일평균 = 주문중(예상매출) ÷ 딜 운영일수 (딜 시작일부터 수집 시점까지, 시작 당일 = 1일)<br>
   일/주 단위는 해당 기간의 마지막 수집값 기준이며, 24시(자정) 수집분은 전날로 셉니다.
 </footer>
 
@@ -177,6 +185,8 @@ const S = {index:null, cat:null, products:{}, prodLoaded:{}, months:{}, snaps:[]
 const kparts = ms => { const d = new Date(ms + KST); return {y:d.getUTCFullYear(), m:d.getUTCMonth()+1, d:d.getUTCDate(), h:d.getUTCHours(), dow:d.getUTCDay()}; };
 const kms = (y,m,d,h=0) => Date.UTC(y, m-1, d, h) - KST;
 const pad = n => String(n).padStart(2,'0');
+const ymd = v => v ? kms(+v.slice(0,4), +v.slice(4,6), +v.slice(6,8), +v.slice(8,10)||0) + (+v.slice(10,12)||0)*6e4 : null;  // YYYYMMDDHHMMSS (한국 시간)
+const mdLab = ms => { if(ms==null) return '-'; const p = kparts(ms); return `${p.m}/${p.d}`; };
 const lab = ms => { const p = kparts(ms); return `${p.m}/${p.d} ${pad(p.h)}시`; };
 const dayKey = ms => { const p = kparts(ms - 2*36e5); return kms(p.y,p.m,p.d); };   // 자정~2시 수집분은 전날
 const weekKey = ms => { const k = dayKey(ms), p = kparts(k); return k - ((p.dow+6)%7)*DAY; }; // 월요일 시작
@@ -255,7 +265,7 @@ async function update(){
 
   if(!S.inRange.length){
     $('#rangeinfo').textContent = '선택한 기간에 수집된 데이터가 없어요.';
-    $('#rows').innerHTML = '<tr><td colspan="9" class="empty">선택한 기간에 수집된 데이터가 없어요</td></tr>';
+    $('#rows').innerHTML = '<tr><td colspan="15" class="empty">선택한 기간에 수집된 데이터가 없어요</td></tr>';
     $('#tiles').innerHTML = ''; $('#cmp').textContent = ''; S.cur = null; drawChart(); return;
   }
   S.cur = S.inRange[S.inRange.length-1];
@@ -264,6 +274,12 @@ async function update(){
   S.cur.rows.forEach(r => {
     const p = product(r.productId), b = baseMap.get(r.productId);
     Object.assign(r, {name:p.name, brand:p.brand, category:p.category, url:p.url, image:p.image});
+    r.dealStartMs = ymd(p.dealStart); r.dealEndMs = ymd(p.dealEnd);
+    // 딜 운영일수: 딜 시작부터 이 수집 시점까지 (시작 당일 = 1일)
+    r.dealDays = r.dealStartMs && S.cur.t >= r.dealStartMs ? Math.max(1, Math.ceil((S.cur.t - r.dealStartMs) / DAY)) : null;
+    r.avgOrdering = r.dealDays && r.ordering != null ? r.ordering / r.dealDays : null;
+    r.avgSales = r.dealDays && r.sales != null ? r.sales / r.dealDays : null;
+    r.liveMs = ymd(r.liveStartAt);
     r.baseRank = b ? b.rank : null;
     r.chg = !S.base ? 0 : b ? b.rank - r.rank : 999;  // 999 = 신규
     r.dOrdering = b && r.ordering!=null && b.ordering!=null ? r.ordering - b.ordering : null;
@@ -274,7 +290,15 @@ async function update(){
   $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `변동은 기간 시작(${lab(S.base.t)}) 대비, 표는 ${lab(S.cur.t)} 기준` : `변동은 직전 수집(${lab(S.base.t)}) 대비`;
   if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
     S.picked = S.cur.rows.slice(0,5).map(r=>String(r.productId));
+  fillSubcat();
   tiles(); render(); drawChart();
+}
+function fillSubcat(){
+  const sel = $('#subcat'), keep = sel.value, cnt = {};
+  S.cur.rows.forEach(r => { if(r.category) cnt[r.category] = (cnt[r.category]||0) + 1; });
+  const cats = Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a] || a.localeCompare(b,'ko'));
+  sel.innerHTML = '<option value="">세부 카테고리 전체</option>' + cats.map(c=>`<option value="${esc(c)}">${esc(c)} (${cnt[c]})</option>`).join('');
+  sel.value = cats.includes(keep) ? keep : '';
 }
 
 // ---- 요약 카드 ----
@@ -305,6 +329,7 @@ const deltaHTML = (d, f) => d ? `<span class="delta ${d>0?'up':'down'}">${d>0?'+
 function tableRows(){
   const q = $('#q').value.trim().toLowerCase(), f = $('#filter').value;
   let rs = S.cur.rows.filter(r => !q || ((r.name||'')+' '+(r.brand||'')).toLowerCase().includes(q));
+  const sc = $('#subcat').value; if(sc) rs = rs.filter(r=>r.category===sc);
   if(f==='up') rs = rs.filter(r=>r.chg>0 && r.chg!==999);
   if(f==='down') rs = rs.filter(r=>r.chg<0);
   if(f==='new') rs = rs.filter(r=>r.chg===999);
@@ -322,11 +347,17 @@ function render(){
       <td><img class="thumb" loading="lazy" src="${esc(r.image)}" alt=""></td>
       <td class="pname">${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></td>
       <td>${esc(r.brand)}</td>
+      <td class="num strike">${r.originalPrice && r.originalPrice !== r.price ? fmt(r.originalPrice)+'원' : '-'}</td>
       <td class="num">${fmt(r.price)}원</td>
+      <td class="num benefit">${r.maxBenefitPrice ? fmt(r.maxBenefitPrice)+'원' : '-'}</td>
       <td class="num disc">${r.discountRate ? Math.round(r.discountRate)+'%' : '-'}</td>
       <td class="num">${fmt(r.ordering)}${deltaHTML(r.dOrdering, fmt)}</td>
-      <td class="num">${won(r.sales)}원${deltaHTML(r.dSales, won)}</td>
-    </tr>`).join('') : '<tr><td colspan="9" class="empty">조건에 맞는 상품이 없어요</td></tr>';
+      <td class="num">${r.sales!=null ? won(r.sales)+'원' : '-'}${deltaHTML(r.dSales, won)}</td>
+      <td class="num">${mdLab(r.dealStartMs)}${r.dealDays ? `<span class="delta same">${r.dealDays}일째${r.dealEndMs ? ' · ~'+mdLab(r.dealEndMs) : ''}</span>` : ''}</td>
+      <td class="num">${r.avgOrdering!=null ? fmt(r.avgOrdering) : '-'}</td>
+      <td class="num">${r.avgSales!=null ? won(r.avgSales)+'원' : '-'}</td>
+      <td class="num">${r.liveMs ? lab(r.liveMs) : '-'}</td>
+    </tr>`).join('') : '<tr><td colspan="15" class="empty">조건에 맞는 상품이 없어요</td></tr>';
   $$('#rows tr[data-id]').forEach(tr => tr.onclick = e => {
     if(e.target.closest('a')) return;
     const id = tr.dataset.id, i = S.picked.indexOf(id);
@@ -398,18 +429,21 @@ async function downloadXlsx(){
   const btn = $('#xlsx'); btn.disabled = true; btn.textContent = '만드는 중…';
   try{
     if(typeof XLSX === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+    const dt = ms => { if(ms==null) return null; const p = kparts(ms); return `${p.y}-${pad(p.m)}-${pad(p.d)} ${pad(p.h)}:00`; };
     const chgText = r => !S.base ? '' : r.chg===999 ? 'NEW' : r.chg;
     const sheet1 = tableRows().map(r => ({'순위':r.rank, '변동':chgText(r), '상품명':r.name, '브랜드':r.brand, '카테고리':r.category,
       '톡딜가':r.price, '할인율(%)':r.discountRate, '주문중':r.ordering, '주문중 증감':r.dOrdering, '예상매출':r.sales, '예상매출 증감':r.dSales,
-      '정가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':r.url}));
+      '정상가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '딜 시작':dt(r.dealStartMs), '딜 종료':dt(r.dealEndMs), '딜 운영일수':r.dealDays,
+      '일평균 주문':r.avgOrdering!=null?Math.round(r.avgOrdering):null, '일평균 예상매출':r.avgSales!=null?Math.round(r.avgSales):null, '라이브 일자':dt(r.liveMs),
+      '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':r.url}));
     const sheet2 = [];
     S.inRange.forEach(s => s.rows.forEach(r => { const p = product(r.productId); sheet2.push({'수집시각':lab(s.t), '순위':r.rank, '상품명':p.name, '브랜드':p.brand, '카테고리':p.category,
       '톡딜가':r.price, '할인율(%)':r.discountRate, '주문중':r.ordering, '예상매출':r.sales,
-      '정가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':p.url}); }));
+      '정상가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '라이브 일자':dt(ymd(r.liveStartAt)), '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':p.url}); }));
     const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.json_to_sheet(sheet1), ws2 = XLSX.utils.json_to_sheet(sheet2);
-    ws1['!cols'] = [6,6,50,14,14,10,8,9,10,12,12,10,10,9,8,8,11,45].map(w=>({wch:w}));
-    ws2['!cols'] = [12,6,50,14,14,10,8,9,12,10,10,9,8,8,11,45].map(w=>({wch:w}));
+    ws1['!cols'] = [6,6,50,14,14,10,8,9,10,12,12,10,10,17,17,10,10,12,17,9,8,8,11,45].map(w=>({wch:w}));
+    ws2['!cols'] = [12,6,50,14,14,10,8,9,12,10,10,17,9,8,8,11,45].map(w=>({wch:w}));
     XLSX.utils.book_append_sheet(wb, ws1, '랭킹(종료시점)');
     XLSX.utils.book_append_sheet(wb, ws2, '기간 전체 기록');
     const f = ms => { const p = kparts(ms); return `${p.y}${pad(p.m)}${pad(p.d)}-${pad(p.h)}`; };
@@ -424,7 +458,7 @@ async function init(){
     S.index = await getJSON('data/index.json');
     if(!S.index.categories || !S.index.categories.length) throw new Error('empty');
   }catch(e){
-    $('#rows').innerHTML = '<tr><td colspan="9" class="empty">아직 수집된 데이터가 없어요. 첫 수집 후에 표시됩니다.</td></tr>';
+    $('#rows').innerHTML = '<tr><td colspan="15" class="empty">아직 수집된 데이터가 없어요. 첫 수집 후에 표시됩니다.</td></tr>';
     $('#basis').textContent = '데이터 없음'; return;
   }
   S.index.firstMs = Date.parse(S.index.first); S.index.lastMs = Date.parse(S.index.last);
@@ -439,7 +473,7 @@ async function init(){
   };
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
-  $('#q').oninput = render; $('#filter').onchange = render;
+  $('#q').oninput = render; $('#filter').onchange = render; $('#subcat').onchange = render;
   $('#cq').oninput = drawChart; $('#sum').onchange = drawChart;
   $('#xlsx').onclick = downloadXlsx;
   $$('th[data-k]').forEach(th => th.onclick = () => {

@@ -58,7 +58,8 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .rangeinfo{font-size:12px;color:var(--muted);margin-top:8px}
 .rangeinfo:empty{display:none}
 .rangeinfo + .rangeinfo{margin-top:4px}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+@media (max-width:760px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
 .tile .k{color:var(--muted);font-size:12px}
 .tile .v{font-size:18px;font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -433,11 +434,10 @@ function tiles(){
   const total = rs.reduce((a,r)=>a+(r.sales||0),0);
   const t = (k,v,d) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
   $('#tiles').innerHTML =
-    t(on ? `조건 내 1위 브랜드 (전체 ${top.rank}위)` : '1위 브랜드', esc(top.brand), esc(top.name)) +
+    t('순위권 최다 스토어', esc(most.brand), `총 ${most.n}개`) +
+    t('추정매출 최고 스토어', rich ? esc(rich.brand) : '-', rich ? `총 ${won(rich.sales)}원` : '추정매출 데이터 없음') +
     t('순위 급상승 상품', risers[0] ? `<span class="up">▲${risers[0].chg}</span> ${esc(risers[0].brand)}` : '-', risers[0] ? `${risers[0].baseRank}위 → ${risers[0].rank}위` : '상승한 상품 없음') +
-    t('매출 급상승 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`) +
-    t('순위권 최다 브랜드', esc(most.brand), `총 ${most.n}개`) +
-    t('추정매출 최고 브랜드', rich ? esc(rich.brand) : '-', rich ? `총 ${won(rich.sales)}원` : '추정매출 데이터 없음');
+    t('매출 급상승 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`);
 }
 
 // ---- 랭킹 표 ----

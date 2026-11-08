@@ -379,7 +379,7 @@ function render(){
       <td class="num disc">${r.discountRate ? Math.round(r.discountRate)+'%' : '-'}</td>
       <td class="num">${fmt(r.ordering)}${deltaHTML(r.dOrdering, fmt)}</td>
       <td class="num">${r.sales!=null ? won(r.sales)+'원' : '-'}${deltaHTML(r.dSales, won)}</td>
-      <td class="num">${mdLab(r.dealStartMs)}${r.dealDays ? `<span class="delta same">${r.dealDays}일째${r.dealEndMs ? ' · ~'+mdLab(r.dealEndMs) : ''}</span>` : ''}</td>
+      <td class="num">${mdLab(r.dealStartMs)}${r.dealDays ? `<span class="delta same">${r.dealDays}일차</span>` : ''}</td>
       <td class="num">${r.avgOrdering!=null ? fmt(r.avgOrdering) : '-'}</td>
       <td class="num">${r.avgSales!=null ? won(r.avgSales)+'원' : '-'}</td>
       <td class="num">${r.liveMs ? lab(r.liveMs) : '-'}</td>

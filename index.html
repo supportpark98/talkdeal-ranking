@@ -137,7 +137,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       </span>
     </h2>
     <div class="toolbar" style="justify-content:flex-end;margin-top:-6px">
-      <label class="chk"><input type="checkbox" id="sum"> 검색어별로 합쳐 보기</label>
+      <label class="chk" id="sumWrap"><input type="checkbox" id="sum"> 검색어별로 합쳐 보기</label>
+      <label class="chk" id="top10Wrap"><input type="checkbox" id="top10"> TOP 10만 표시</label>
     </div>
     <div class="hint" id="chartHint"></div>
     <div class="chartbox"><canvas id="chart"></canvas></div>
@@ -503,6 +504,10 @@ function drawChart(){
   const fkey = ts.join(',') + '|' + csub; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; }
   const sumMode = $('#sum').checked && !!q;
   $('#sum').disabled = !q;
+  // 순위 모드에서는 'TOP 10만 표시', 추정매출/주문수 모드에서는 '검색어별로 합쳐 보기'
+  $('#sumWrap').style.display = metric === 'rank' ? 'none' : '';
+  $('#top10Wrap').style.display = metric === 'rank' ? '' : 'none';
+  const top10 = metric === 'rank' && $('#top10').checked;
   let ids, datasets;
   if(q){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
@@ -532,10 +537,12 @@ function drawChart(){
     label: `${product(id).brand||''} · ${(product(id).name||'').slice(0,20)}`,
     data: bs.map(b => { const r = b.map.get(id); return r ? r[metric] : null; })
   }));
+  // TOP 10만: 10위 밖 시점은 비우고, 기간 내내 10위 밖인 상품은 빼기
+  if(top10){ datasets.forEach(d => d.data = d.data.map(v => v != null && v <= 10 ? v : null)); datasets = datasets.filter(d => d.data.some(v => v != null)); if(!datasets.length) hint.textContent += ' · 기간 중 10위 안에 든 상품이 없어요'; }
   datasets.forEach((d,i) => Object.assign(d, {borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length], tension:0, pointRadius:3, borderWidth:2, spanGaps:false}));
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
   // 순위 축: 실제 그려진 순위 범위에 맞추고 위아래로 반 칸 여백, 눈금은 정수만
-  const rs = datasets.flatMap(d => d.data).filter(v => v != null);
+  const rs = top10 ? [1, 10] : datasets.flatMap(d => d.data).filter(v => v != null);
   const rMin = rs.length ? Math.min(...rs) : 1, rMax = rs.length ? Math.max(...rs) : 10;
   // 눈금은 일정한 간격만: 범위 10 이하는 1위마다, 25 이하는 5, 60 이하는 10, 그 이상은 20 (1위는 범위 안이면 항상 표시)
   const span = rMax - rMin, step = span <= 10 ? 1 : span <= 25 ? 5 : span <= 60 ? 10 : 20;
@@ -643,7 +650,7 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   $('#filter').onchange = render;
-  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; $('#csub').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart;
+  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; $('#csub').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart;
   $('#xlsx').onclick = downloadXlsx;
   $$('#cols col').forEach(c => c.dataset.w = c.style.width);
   setupResize();

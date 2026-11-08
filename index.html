@@ -149,7 +149,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     <div class="toolbar chartbar">
       <div class="hint" id="chartHint"></div>
       <label class="chk" id="sumWrap"><input type="checkbox" id="sum"> 검색어별로 합쳐 보기</label>
-      <label class="chk" id="top10Wrap"><input type="checkbox" id="top10"> TOP 10만 표시</label>
+      <label class="chk" id="top10Wrap"><input type="checkbox" id="top10"> TOP 5만 표시</label>
     </div>
     <div class="chartbox"><canvas id="chart"></canvas></div>
   </section>
@@ -508,7 +508,7 @@ function drawChart(){
   const fkey = ts.join(',') + '|' + csub + '|' + dealOnly; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; }
   const sumMode = $('#sum').checked && !!q;
   $('#sum').disabled = !q;
-  // 순위 모드에서는 'TOP 10만 표시', 추정매출/주문수 모드에서는 '검색어별로 합쳐 보기'
+  // 순위 모드에서는 'TOP 5만 표시', 추정매출/주문수 모드에서는 '검색어별로 합쳐 보기'
   $('#sumWrap').style.display = metric === 'rank' ? 'none' : '';
   $('#top10Wrap').style.display = metric === 'rank' ? '' : 'none';
   const top10 = metric === 'rank' && $('#top10').checked;
@@ -541,12 +541,16 @@ function drawChart(){
     label: `${product(id).brand||''} · ${(product(id).name||'').slice(0,20)}`,
     data: bs.map(b => { const r = b.map.get(id); return r ? r[metric] : null; })
   }));
-  // TOP 10만: 10위 밖 시점은 비우고, 기간 내내 10위 밖인 상품은 빼기
-  if(top10){ datasets.forEach(d => d.data = d.data.map(v => v != null && v <= 10 ? v : null)); datasets = datasets.filter(d => d.data.some(v => v != null)); if(!datasets.length) hint.textContent += ' · 기간 중 10위 안에 든 상품이 없어요'; }
+  // TOP 5만: 6위 이하 시점은 맨 아래 '5위 미만' 칸(6)에 점을 찍고, 라벨/툴팁은 실제 순위(d.real)로. 기간 내내 5위 밖인 상품은 빼기
+  if(top10){
+    datasets = datasets.filter(d => d.data.some(v => v != null && v <= 5));
+    datasets.forEach(d => { d.real = d.data.slice(); d.data = d.data.map(v => v == null ? null : Math.min(v, 6)); });
+    if(!datasets.length) hint.textContent += ' · 기간 중 5위 안에 든 상품이 없어요';
+  }
   datasets.forEach((d,i) => Object.assign(d, {borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length], tension:0, pointRadius:3, borderWidth:2, spanGaps:false}));
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
   // 순위 축: 실제 그려진 순위 범위에 맞추고 위아래로 반 칸 여백, 눈금은 정수만
-  const rs = top10 ? [1, 10] : datasets.flatMap(d => d.data).filter(v => v != null);
+  const rs = top10 ? [1, 6] : datasets.flatMap(d => d.data).filter(v => v != null);
   const rMin = rs.length ? Math.min(...rs) : 1, rMax = rs.length ? Math.max(...rs) : 10;
   // 눈금은 일정한 간격만: 범위 10 이하는 1위마다, 25 이하는 5, 60 이하는 10, 그 이상은 20 (1위는 범위 안이면 항상 표시)
   const span = rMax - rMin, step = span <= 10 ? 1 : span <= 25 ? 5 : span <= 60 ? 10 : 20;
@@ -558,7 +562,7 @@ function drawChart(){
       for(let v = Math.ceil(yLo / step) * step; v <= yHi; v += step) if(v > 1 && v >= yLo) t.push(v);
       ax.ticks = t.map(value => ({value}));
     },
-    title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => v + '위'}, grid:{color:grid}};
+    title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => top10 && v === 6 ? '5위 미만' : v + '위'}, grid:{color:grid}};
   const yVal = {beginAtZero:true, title:{display:true,text:METRIC[metric]+(metric==='sales'?' (백만원)':''),color:tick}, ticks:{color:tick, callback:v=>metric==='sales'?won(v):fmt(v)}, grid:{color:grid}};
   // 각 점 위에 직전 점 대비 증감 표시 (순위: 오르면 ▲, 추정매출: 백만원 단위, 1백만 미만은 소수 첫째 자리, 주문수: 개수)
   const cs = getComputedStyle(document.documentElement);
@@ -568,22 +572,33 @@ function drawChart(){
     // 모든 지표에서 점 위에 값(순위/추정매출/주문수), 그 아래에 증감을 표시한다.
     const showVal = true;
     const valTxt = v => metric === 'rank' ? v + '위' : metric === 'sales' ? won(v) : fmt(v);
+    // 같은 시점에서 라벨이 겹치면 위로 밀어 올린다 (아래쪽 점부터 자리를 잡아서, 각 라벨이 자기 점에 최대한 가깝게)
+    const items = [];
     chart.data.datasets.forEach((ds, di) => {
       const meta = chart.getDatasetMeta(di); if(meta.hidden) return;
       let prev = null;
-      ds.data.forEach((v, i) => {
-        if(v == null){ return; }
-        const pt = meta.data[i];
-        if(prev != null){
-          let d = v - prev, txt = '-', good = d > 0;
-          if(metric === 'rank'){ d = prev - v; good = d > 0; if(d) txt = (d > 0 ? '▲' : '▼') + Math.abs(d); }
-          else if(metric === 'sales'){ const v2 = d / 1e6, mm = Math.abs(v2) >= 1 ? Math.round(v2) : Math.round(v2 * 10) / 10; d = mm; if(mm) txt = (mm > 0 ? '+' : '') + mm.toLocaleString('ko-KR') + '백만'; }
-          else if(d){ txt = (d > 0 ? '+' : '') + fmt(d); }
-          ctx.fillStyle = !d ? tick : good ? upC : downC; ctx.fillText(txt, pt.x, pt.y - 6);
-        }
-        if(showVal){ ctx.fillStyle = tick; ctx.fillText(valTxt(v), pt.x, pt.y - (prev != null ? 18 : 6)); }
+      ds.data.forEach((v0, i) => {
+        if(v0 == null) return;
+        const v = ds.real ? ds.real[i] : v0;   // TOP 5 모드에선 점 위치와 별개로 실제 순위로 표시
+        items.push({i, v, prev, pt: meta.data[i]});
         prev = v;
       });
+    });
+    const used = {};
+    items.sort((a, b) => b.pt.y - a.pt.y).forEach(it => {
+      const h = it.prev != null ? 24 : 12, L = used[it.i] = used[it.i] || [];
+      let bt = it.pt.y - 6;
+      for(let k = 0; k < 30; k++){ const hit = L.find(([t, b2]) => bt - h < b2 && bt > t); if(!hit) break; bt = hit[0] - 1; }
+      L.push([bt - h, bt]);
+      const {v, prev, pt} = it;
+      if(prev != null){
+        let d = v - prev, txt = '-', good = d > 0;
+        if(metric === 'rank'){ d = prev - v; good = d > 0; if(d) txt = (d > 0 ? '▲' : '▼') + Math.abs(d); }
+        else if(metric === 'sales'){ const v2 = d / 1e6, mm = Math.abs(v2) >= 1 ? Math.round(v2) : Math.round(v2 * 10) / 10; d = mm; if(mm) txt = (mm > 0 ? '+' : '') + mm.toLocaleString('ko-KR') + '백만'; }
+        else if(d){ txt = (d > 0 ? '+' : '') + fmt(d); }
+        ctx.fillStyle = !d ? tick : good ? upC : downC; ctx.fillText(txt, pt.x, bt);
+      }
+      if(showVal){ ctx.fillStyle = tick; ctx.fillText(valTxt(v), pt.x, bt - (prev != null ? 12 : 0)); }
     });
     ctx.restore();
   }};
@@ -591,7 +606,7 @@ function drawChart(){
     responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false}, layout:{padding:{top: 32, left:4, right:20}},
     scales:{ y: metric==='rank' ? yRank : yVal, x:{ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
-      tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw==null?'순위권 밖': metric==='rank' ? c.raw+'위' : metric==='sales' ? won(c.raw)+'원' : fmt(c.raw)}`}} }
+      tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw; return `${c.dataset.label}: ${raw==null?'순위권 밖': metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}`; }}} }
   }});
 }
 

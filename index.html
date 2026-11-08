@@ -64,6 +64,14 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .tile .k{color:var(--muted);font-size:12px}
 .tile .v{font-size:18px;font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tile .d{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 상품명이 칸보다 길면 왼쪽으로 흘러가며 끝까지 보여준다 */
+.tile .v.row{display:flex;gap:6px;text-overflow:clip}
+.tile .v.row > .up{flex:none}
+.mq{flex:1;min-width:0;overflow:hidden;white-space:nowrap}
+.mq > span{display:inline-block}
+.mq.run > span{animation:mq var(--dur,8s) ease-in-out infinite alternate}
+@keyframes mq{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(var(--dx))}}
+@media (prefers-reduced-motion:reduce){.mq.run > span{animation:none}.mq{text-overflow:ellipsis}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
 .card h2{font-size:15px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .card h2 small{font-weight:400;color:var(--muted);font-size:12px}
@@ -433,12 +441,26 @@ function tiles(){
   const hot = rs.filter(r=>r.dSales!=null).sort((a,b)=>b.dSales-a.dSales)[0];
   const total = rs.reduce((a,r)=>a+(r.sales||0),0);
   const t = (k,v,d) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+  const tp = (k,chg,name,d) => `<div class="tile"><div class="k">${k}</div><div class="v row"><span class="up">${chg}</span><span class="mq"><span>${esc(name)}</span></span></div><div class="d">${d}</div></div>`;
   $('#tiles').innerHTML =
-    t('순위권 최다 스토어', esc(most.brand), `총 ${most.n}개`) +
-    t('추정매출 최고 스토어', rich ? esc(rich.brand) : '-', rich ? `총 ${won(rich.sales)}원` : '추정매출 데이터 없음') +
-    t('순위 급상승 상품', risers[0] ? `<span class="up">▲${risers[0].chg}</span> ${esc(risers[0].brand)}` : '-', risers[0] ? `${risers[0].baseRank}위 → ${risers[0].rank}위` : '상승한 상품 없음') +
-    t('매출 급상승 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`);
+    t('최다 랭크인 스토어', esc(most.brand), `총 ${most.n}개 상품`) +
+    t('매출 1위 스토어', rich ? esc(rich.brand) : '-', rich ? `추정매출 총 ${won(rich.sales)}원` : '추정매출 데이터 없음') +
+    (risers[0] ? tp('순위 급상승 상품', `▲${risers[0].chg}`, risers[0].name, `${risers[0].baseRank}위 → ${risers[0].rank}위 · ${esc(risers[0].brand)}`)
+               : t('순위 급상승 상품', '-', '상승한 상품 없음')) +
+    (hot && hot.dSales>0 ? tp('매출 급상승 상품', `+${won(hot.dSales)}원`, hot.name, `${won(hot.sales - hot.dSales)}원 → ${won(hot.sales)}원 · ${esc(hot.brand)}`)
+               : t('매출 급상승 상품', '-', `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`));
+  marquee();
 }
+
+// 칸보다 긴 상품명만 흘러가게. 길이에 비례해 속도를 맞춘다
+function marquee(){
+  document.querySelectorAll('#tiles .mq').forEach(m => {
+    const over = m.firstElementChild.scrollWidth - m.clientWidth;
+    m.classList.toggle('run', over > 2);
+    if(over > 2){ m.style.setProperty('--dx', -over + 'px'); m.style.setProperty('--dur', Math.max(4, over/45 + 2) + 's'); }
+  });
+}
+window.addEventListener('resize', () => { clearTimeout(marquee.t); marquee.t = setTimeout(marquee, 150); });
 
 // ---- 랭킹 표 ----
 function chgHTML(r){

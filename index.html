@@ -541,16 +541,16 @@ function drawChart(){
       const sumOf = ms => bs.map(b => { let sum = 0, any = false; ms.forEach(id => { const r = b.map.get(id); if(r && r[metric]!=null){ sum += r[metric]; any = true; } }); return any ? sum : null; });
       datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, data: sumOf(ms)}; })
         : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, data: sumOf(match)}];
-      hint.textContent = `검색어별 ${METRIC[metric]} 합계 (순위권 안에 있던 시점만 더함)`;
+      hint.textContent = `*검색어별 ${METRIC[metric]} 합계 (순위권 안에 있던 시점만 더함)`;
     } else {
       // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 추정매출 상위 8개
       const mine = S.fpicked;
       ids = mine.length ? mine : match.slice(0,DEFPICK);
-      hint.textContent = mine.length ? '아래 랭킹 표에서 고른 상품 표시 · 상품을 눌러 추가하거나 뺄 수 있어요 (최대 10개)' : match.length ? `조건에 맞는 상품 ${match.length}개${match.length>DEFPICK?` 중 추정매출 상위 ${DEFPICK}개`:''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
+      hint.textContent = mine.length ? '*아래 랭킹 표에서 고른 상품 표시 · 상품을 눌러 추가하거나 뺄 수 있어요 (최대 10개)' : match.length ? `*조건에 맞는 상품 ${match.length}개${match.length>DEFPICK?` 중 추정매출 상위 ${DEFPICK}개`:''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '*조건에 맞는 상품이 없어요';
     }
   } else {
     ids = S.picked;
-    hint.textContent = '아래 랭킹 표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 10개)';
+    hint.textContent = '*아래 랭킹 표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 10개)';
   }
   S.shown = ids || [];
   if(!datasets) datasets = ids.map(id => ({

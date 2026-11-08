@@ -129,7 +129,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     <h2><span>추이</span>
       <span style="display:flex;gap:8px;flex-wrap:wrap">
         <span class="seg" id="metric">
-          <button data-m="rank" class="on">순위</button><button data-m="sales">예상매출</button><button data-m="ordering">주문수</button>
+          <button data-m="rank" class="on">순위</button><button data-m="sales">추정매출</button><button data-m="ordering">주문수</button>
         </span>
         <span class="seg" id="gran">
           <button data-g="hour">시간</button><button data-g="day">일</button><button data-g="week">주</button>
@@ -168,7 +168,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
           <th data-k="rank" class="num">순위</th><th data-k="chg">변동</th>
           <th data-k="name">상품명</th><th data-k="brand">브랜드</th>
           <th data-k="dealStartMs" class="num">딜 오픈일자</th><th data-k="liveMs" class="num">라이브 일자</th>
-          <th data-k="sales" class="num">예상매출</th><th data-k="ordering" class="num">주문수</th>
+          <th data-k="sales" class="num">추정매출</th><th data-k="ordering" class="num">주문수</th>
           <th data-k="originalPrice" class="num">정상가</th><th data-k="price" class="num">톡딜가</th>
           <th data-k="maxBenefitPrice" class="num">최대혜택가</th><th data-k="discountRate" class="num">할인율</th>
         </tr></thead>
@@ -181,8 +181,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   매일 10시, 18시, 24시 집계분을 자동 수집 · 출처: 카카오 톡딜 랭킹<br>
   카카오가 정각 집계를 약 40분 뒤에 반영해서, 실제 수집은 각 정각의 약 50분 뒤에 이뤄집니다.<br>
   <span id="since"></span><br>
-  예상매출 = 톡딜가 × 주문수 (옵션별 가격 차이는 반영되지 않은 추정치)<br>
-  일평균 = 주문수(예상매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
+  추정매출 = 톡딜가 × 주문수 (옵션별 가격 차이는 반영되지 않은 추정치)<br>
+  일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
   일/주 단위는 해당 기간의 마지막 수집값 기준이며, 24시(자정) 수집분은 전날로 셉니다.
 </footer>
 
@@ -201,7 +201,7 @@ const won = n => {
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const COLORS = ['#e5484d','#2f6fde','#12a150','#f5a524','#8e4ec6','#0ea5a4','#d6409f','#7c8a99'];
 const DAY = 864e5, KST = 9*36e5;
-const METRIC = {rank:'순위', sales:'예상매출', ordering:'주문수'};
+const METRIC = {rank:'순위', sales:'추정매출', ordering:'주문수'};
 
 const S = {index:null, cat:null, products:{}, prodLoaded:{}, months:{}, snaps:[], inRange:[], cur:null, base:null,
   start:0, end:0, metric:'rank', gran:'hour', sort:{k:'rank',dir:1}, picked:[], chart:null};
@@ -383,7 +383,7 @@ function tiles(){
     t('1위', esc(top.brand), esc(top.name)) +
     t('가장 많이 오른 상품', risers[0] ? `<span class="up">▲${risers[0].chg}</span> ${esc(risers[0].brand)}` : '-', risers[0] ? `${risers[0].baseRank}위 → ${risers[0].rank}위` : '상승한 상품 없음') +
     t('신규 진입', S.base ? `${news.length}개` : '-', news.slice(0,3).map(r=>esc(r.brand)).join(', ') || ' ') +
-    t('예상매출 가장 많이 늘어난 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 예상매출 합계 ${won(total)}원`);
+    t('추정매출 가장 많이 늘어난 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`);
 }
 
 // ---- 랭킹 표 ----
@@ -515,10 +515,10 @@ function drawChart(){
         : [{label:`${csub} 합계 (${match.length}개 상품)`, data: sumOf(match)}];
       hint.textContent = `검색어별 ${METRIC[metric]} 합계 (순위권 안에 있던 시점만 더함)`;
     } else {
-      // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 예상매출 상위 8개
+      // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 추정매출 상위 8개
       const mine = S.fpicked;
       ids = mine.length ? mine : match.slice(0,8);
-      hint.textContent = mine.length ? '표에서 고른 상품 표시 · 표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)' : match.length ? `조건에 맞는 상품 ${match.length}개${match.length>8?' 중 예상매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
+      hint.textContent = mine.length ? '표에서 고른 상품 표시 · 표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)' : match.length ? `조건에 맞는 상품 ${match.length}개${match.length>8?' 중 추정매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
     }
   } else {
     ids = S.picked;
@@ -546,12 +546,12 @@ function drawChart(){
     },
     title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => v + '위'}, grid:{color:grid}};
   const yVal = {beginAtZero:true, title:{display:true,text:METRIC[metric]+(metric==='sales'?' (백만원)':''),color:tick}, ticks:{color:tick, callback:v=>metric==='sales'?won(v):fmt(v)}, grid:{color:grid}};
-  // 각 점 위에 직전 점 대비 증감 표시 (순위: 오르면 ▲, 예상매출: 백만원 단위, 1백만 미만은 소수 첫째 자리, 주문수: 개수)
+  // 각 점 위에 직전 점 대비 증감 표시 (순위: 오르면 ▲, 추정매출: 백만원 단위, 1백만 미만은 소수 첫째 자리, 주문수: 개수)
   const cs = getComputedStyle(document.documentElement);
   const upC = cs.getPropertyValue('--up').trim() || '#e5484d', downC = cs.getPropertyValue('--down').trim() || '#2f6fde';
   const deltaLabels = {id:'deltaLabels', afterDatasetsDraw(chart){
     const ctx = chart.ctx; ctx.save(); ctx.font = '600 10px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    // 예상매출/주문수는 점 위에 값, 그 아래에 증감. 선이 많으면(5개 이상) 겹치지 않게 증감만.
+    // 추정매출/주문수는 점 위에 값, 그 아래에 증감. 선이 많으면(5개 이상) 겹치지 않게 증감만.
     const showVal = metric !== 'rank' && chart.data.datasets.filter((d, i) => !chart.getDatasetMeta(i).hidden).length <= 4;
     const valTxt = v => metric === 'sales' ? won(v) : fmt(v);
     chart.data.datasets.forEach((ds, di) => {
@@ -592,13 +592,13 @@ async function downloadXlsx(){
     const chgText = r => !S.base ? '' : r.chg===999 ? 'NEW' : r.chg;
     const sheet1 = tableRows().map(r => ({'순위':r.rank, '변동':chgText(r), '상품명':r.name, '브랜드':r.brand, '카테고리':r.category,
       '딜 오픈일자':dt(r.dealStartMs), '딜 운영일수':r.dealDays, '딜 종료':dt(r.dealEndMs), '라이브 일자':dt(r.liveMs),
-      '예상매출':r.sales, '예상매출 증감':r.dSales, '일평균 예상매출':r.avgSales!=null?Math.round(r.avgSales):null,
+      '추정매출':r.sales, '추정매출 증감':r.dSales, '일평균 추정매출':r.avgSales!=null?Math.round(r.avgSales):null,
       '주문수':r.ordering, '주문수 증감':r.dOrdering, '일평균 주문':r.avgOrdering!=null?Math.round(r.avgOrdering):null,
       '정상가':r.originalPrice, '톡딜가':r.price, '최대혜택가':r.maxBenefitPrice, '할인율(%)':r.discountRate,
       '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':r.url}));
     const sheet2 = [];
     S.inRange.forEach(s => s.rows.forEach(r => { const p = product(r.productId); sheet2.push({'수집시각':lab(s.t), '순위':r.rank, '상품명':p.name, '브랜드':p.brand, '카테고리':p.category,
-      '톡딜가':r.price, '할인율(%)':r.discountRate, '주문수':r.ordering, '예상매출':r.sales,
+      '톡딜가':r.price, '할인율(%)':r.discountRate, '주문수':r.ordering, '추정매출':r.sales,
       '정상가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '라이브 일자':dt(ymd(r.liveStartAt)), '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':p.url}); }));
     const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.json_to_sheet(sheet1), ws2 = XLSX.utils.json_to_sheet(sheet2);

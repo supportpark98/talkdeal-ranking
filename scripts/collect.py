@@ -25,9 +25,8 @@ API = (
 )
 # 대시보드 드롭다운 순서. groupId는 톡딜 랭킹 페이지 주소의 groupId 값.
 CATEGORIES = [
-    {"key": "CHILD", "name": "출산/유아동", "groupId": "6"},
     {"key": "ALL", "name": "전체", "groupId": "all"},
-    {"key": "LIVE", "name": "라이브", "groupId": "1"},
+    {"key": "CHILD", "name": "출산/유아동", "groupId": "6"},
     {"key": "LIFE", "name": "생활", "groupId": "9"},
     {"key": "BEAUTY", "name": "뷰티", "groupId": "2"},
 ]

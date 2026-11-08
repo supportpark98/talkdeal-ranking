@@ -57,6 +57,7 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .chartbox{position:relative;height:320px}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
 .toolbar input[type=search]{flex:1;min-width:160px}
+.searchbar{margin-top:12px;margin-bottom:0}
 .toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
 .tablewrap{overflow-x:auto}
@@ -113,6 +114,10 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
         <button data-q="all">전체</button>
       </div>
     </div>
+    <div class="toolbar searchbar">
+      <input id="cq" type="search" placeholder="상품명 또는 브랜드 검색, 쉼표로 여러 개 (예: 베베그로우, 더블하트, 모윰)">
+      <select id="csub"><option value="">세부 카테고리 전체</option></select>
+    </div>
     <div class="rangeinfo" id="rangeinfo"></div>
     <div class="rangeinfo">*랭킹 데이터는 일간 기준으로 매일 10시, 18시, 24시(자정) 자동으로 수집됩니다.</div>
   </section>
@@ -131,8 +136,6 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       </span>
     </h2>
     <div class="toolbar">
-      <input id="cq" type="search" placeholder="상품명 또는 브랜드로 추이 검색, 쉼표로 여러 개 (예: 베베그로우, 더블하트, 모윰)">
-      <select id="csub"><option value="">세부 카테고리 전체</option></select>
       <label class="chk"><input type="checkbox" id="sum"> 검색 결과 합쳐서 보기</label>
     </div>
     <div class="hint" id="chartHint"></div>
@@ -144,8 +147,6 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <button id="xlsx">엑셀 다운로드</button>
     </h2>
     <div class="toolbar">
-      <input id="q" type="search" placeholder="상품명, 브랜드 검색 (쉼표로 여러 개)">
-      <select id="subcat"><option value="">세부 카테고리 전체</option></select>
       <select id="filter">
         <option value="all">전체</option>
         <option value="up">순위 상승</option>
@@ -366,15 +367,7 @@ async function update(){
   $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `변동은 기간 시작(${lab(S.base.t)}) 대비, 표는 ${lab(S.cur.t)} 기준` : `변동은 직전 수집(${lab(S.base.t)}) 대비`;
   if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
     S.picked = S.cur.rows.slice(0,5).map(r=>String(r.productId));
-  fillSubcat();
   tiles(); render(); drawChart();
-}
-function fillSubcat(){
-  const sel = $('#subcat'), keep = sel.value, cnt = {};
-  S.cur.rows.forEach(r => { if(r.category) cnt[r.category] = (cnt[r.category]||0) + 1; });
-  const cats = Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a] || a.localeCompare(b,'ko'));
-  sel.innerHTML = '<option value="">세부 카테고리 전체</option>' + cats.map(c=>`<option value="${esc(c)}">${esc(c)} (${cnt[c]})</option>`).join('');
-  sel.value = cats.includes(keep) ? keep : '';
 }
 
 // ---- 요약 카드 ----
@@ -406,9 +399,9 @@ const deltaHTML = (d, f) => d ? `<span class="delta ${d>0?'up':'down'}">${d>0?'+
 const terms = v => v.split(',').map(t => t.trim().toLowerCase()).filter(Boolean).slice(0, 8);
 const hit = (text, ts) => ts.some(t => text.includes(t));
 function tableRows(){
-  const ts = terms($('#q').value), f = $('#filter').value;
+  const ts = terms($('#cq').value), f = $('#filter').value;
   let rs = S.cur.rows.filter(r => !ts.length || hit(((r.name||'')+' '+(r.brand||'')).toLowerCase(), ts));
-  const sc = $('#subcat').value; if(sc) rs = rs.filter(r=>r.category===sc);
+  const sc = $('#csub').value; if(sc) rs = rs.filter(r=>r.category===sc);
   if(f==='up') rs = rs.filter(r=>r.chg>0 && r.chg!==999);
   if(f==='down') rs = rs.filter(r=>r.chg<0);
   if(f==='new') rs = rs.filter(r=>r.chg===999);
@@ -421,10 +414,10 @@ function render(){
   $$('th[data-k]').forEach(th => th.classList.toggle('sorted', th.dataset.k===S.sort.k));
   const rs = tableRows();
   $('#rows').innerHTML = rs.length ? rs.map(r => `
-    <tr data-id="${r.productId}" class="${S.picked.includes(String(r.productId))?'sel':''}">
+    <tr data-id="${r.productId}" class="${(S.shown || S.picked).includes(String(r.productId))?'sel':''}">
       <td class="rank">${r.rank}</td>
       <td class="chg">${chgHTML(r)}</td>
-      <td class="pname"><div class="pwrap"><img class="thumb" loading="lazy" src="${esc(r.image)}" alt="" onerror="this.onerror=null;this.src='data:image/gif;base64,R0lGODlhAQABAAAAACw='">
+      <td class="pname"><div class="pwrap"><img class="thumb" loading="lazy" src="${esc(r.image)}" alt="" onerror="this.onerror=null;this.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'">
         <div class="ptext">${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></div></div></td>
       <td>${esc(r.brand)}</td>
       <td class="num bold">${mdLab(r.dealStartMs)}${r.dealDays ? `<span class="delta same">행사 ${r.dealDays}일차</span>` : ''}</td>
@@ -438,9 +431,11 @@ function render(){
     </tr>`).join('') : `<tr><td colspan="12" class="empty">${!S.base && ['up','down','new'].includes($('#filter').value) ? '비교할 이전 수집이 없어서 순위 변동을 아직 알 수 없어요. 다음 수집부터 보여요.' : '조건에 맞는 상품이 없어요'}</td></tr>`;
   $$('#rows tr[data-id]').forEach(tr => tr.onclick = e => {
     if(e.target.closest('a')) return;
-    const id = tr.dataset.id, i = S.picked.indexOf(id);
-    if(i>=0) S.picked.splice(i,1); else { if(S.picked.length>=8) S.picked.shift(); S.picked.push(id); }
-    if($('#cq').value){ $('#cq').value = ''; }
+    const id = tr.dataset.id;
+    let L = S.picked;
+    if(S.filterOn){ if(!S.fpicked.length) S.fpicked = (S.shown || []).slice(); L = S.fpicked; }
+    const i = L.indexOf(id);
+    if(i>=0) L.splice(i,1); else { if(L.length>=8) L.shift(); L.push(id); }
     render(); drawChart();
   });
 }
@@ -499,6 +494,9 @@ function drawChart(){
     sel.innerHTML = '<option value="">세부 카테고리 전체</option>' + cats.map(c=>`<option value="${esc(c)}">${esc(c)} (${cnt[c]})</option>`).join('');
     sel.value = cats.includes(keep) ? keep : ''; }
   const csub = $('#csub').value, q = ts.length > 0 || !!csub;
+  S.filterOn = q; if(!q) S.matchIds = new Set();
+  // 검색 조건이 바뀌면 조건 안에서 고른 상품은 초기화
+  const fkey = ts.join(',') + '|' + csub; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; }
   const sumMode = $('#sum').checked && !!q;
   $('#sum').disabled = !q;
   let ids, datasets;
@@ -506,6 +504,7 @@ function drawChart(){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
     const txt = id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')).toLowerCase(); };
     const match = [...seen].filter(id => (!ts.length || hit(txt(id), ts)) && (!csub || product(id).category === csub));
+    S.matchIds = new Set(match);
     const lastVal = id => { for(let i=bs.length-1;i>=0;i--){ const r = bs[i].map.get(id); if(r) return r.sales||0; } return 0; };
     match.sort((a,b)=>lastVal(b)-lastVal(a));
     if(sumMode && metric !== 'rank'){
@@ -515,13 +514,16 @@ function drawChart(){
         : [{label:`${csub} 합계 (${match.length}개 상품)`, data: sumOf(match)}];
       hint.textContent = `검색어별 ${METRIC[metric]} 합계 (순위권 안에 있던 시점만 더함)`;
     } else {
-      ids = match.slice(0,8);
-      hint.textContent = match.length ? `조건에 맞는 상품 ${match.length}개${match.length>8?' 중 예상매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
+      // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 예상매출 상위 8개
+      const mine = S.fpicked;
+      ids = mine.length ? mine : match.slice(0,8);
+      hint.textContent = mine.length ? '표에서 고른 상품 표시 · 표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)' : match.length ? `조건에 맞는 상품 ${match.length}개${match.length>8?' 중 예상매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
     }
   } else {
     ids = S.picked;
     hint.textContent = '표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)';
   }
+  S.shown = ids || [];
   if(!datasets) datasets = ids.map(id => ({
     label: `${product(id).brand||''} · ${(product(id).name||'').slice(0,20)}`,
     data: bs.map(b => { const r = b.map.get(id); return r ? r[metric] : null; })
@@ -634,8 +636,8 @@ async function init(){
   buildAvail();
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
-  $('#q').oninput = render; $('#filter').onchange = render; $('#subcat').onchange = render;
-  $('#cq').oninput = drawChart; $('#csub').onchange = drawChart; $('#sum').onchange = drawChart;
+  $('#filter').onchange = render;
+  $('#cq').oninput = () => { drawChart(); render(); }; $('#csub').onchange = () => { drawChart(); render(); }; $('#sum').onchange = drawChart;
   $('#xlsx').onclick = downloadXlsx;
   $$('#cols col').forEach(c => c.dataset.w = c.style.width);
   setupResize();

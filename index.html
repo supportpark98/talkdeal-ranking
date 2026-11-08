@@ -33,6 +33,8 @@ main{padding:16px}
   border:1px solid var(--line);background:var(--card);color:var(--text);font-size:18px;line-height:1;cursor:pointer;
   box-shadow:0 2px 8px rgba(0,0,0,.12);opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s;z-index:50}
 #toTop{bottom:76px}
+#toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%);background:rgba(26,29,35,.92);color:#fff;font-size:13px;padding:10px 16px;border-radius:8px;opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s;z-index:60;pointer-events:none}
+#toast.show{opacity:1;visibility:visible}
 #toTop.show,#toBottom.show{opacity:1;visibility:visible}
 #toTop:hover,#toBottom:hover{background:var(--btn)}
 @media (max-width:640px){#toTop,#toBottom{width:40px;height:40px;bottom:16px;right:12px;font-size:16px}#toTop{bottom:64px}}
@@ -64,7 +66,7 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
 .card h2{font-size:15px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .card h2 small{font-weight:400;color:var(--muted);font-size:12px}
-.chartbox{position:relative;height:320px}
+.chartbox{position:relative;height:440px}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
 .toolbar input[type=search]{flex:1;min-width:160px}
 .searchbar{margin-top:12px;margin-bottom:0;align-items:flex-start}
@@ -157,7 +159,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     <div class="toolbar chartbar">
       <div class="hint" id="chartHint"></div>
       <label class="chk" id="sumWrap"><input type="checkbox" id="sum"> 검색어별로 합쳐 보기</label>
-      <label class="chk" id="top10Wrap"><input type="checkbox" id="top10"> TOP 5만 표시</label>
+      <label class="chk" id="top10Wrap"><input type="checkbox" id="top10" checked> TOP 10만 표시</label>
     </div>
     <div class="chartbox"><canvas id="chart"></canvas></div>
   </section>
@@ -413,6 +415,10 @@ function chgHTML(r){
 }
 const deltaHTML = (d, f) => d ? `<span class="delta ${d>0?'up':'down'}">${d>0?'+':''}${f(d)}</span>` : '';
 
+const MAXPICK = 10;   // 추이에 넣을 수 있는 상품 수
+// 잠깐 떴다 사라지는 알림
+function toast(msg){ let t = document.getElementById('toast'); if(!t){ t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('show'); clearTimeout(toast._h); toast._h = setTimeout(() => t.classList.remove('show'), 1000); }
 // 쉼표로 여러 검색어 (최대 8개). 하나라도 포함하면 일치
 const terms = v => v.split(',').map(t => t.trim().toLowerCase()).filter(Boolean).slice(0, 8);
 const hit = (text, ts) => ts.some(t => text.includes(t));
@@ -454,7 +460,7 @@ function render(){
     let L = S.picked;
     if(S.filterOn){ if(!S.fpicked.length) S.fpicked = (S.shown || []).slice(); L = S.fpicked; }
     const i = L.indexOf(id);
-    if(i>=0) L.splice(i,1); else { if(L.length>=8) L.shift(); L.push(id); }
+    if(i>=0) L.splice(i,1); else { if(L.length>=MAXPICK){ toast(`최대 ${MAXPICK}개까지만 선택할 수 있어요`); return; } L.push(id); }
     render(); drawChart();
   });
 }
@@ -518,7 +524,7 @@ function drawChart(){
   const fkey = ts.join(',') + '|' + csub + '|' + dealOnly; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; }
   const sumMode = $('#sum').checked && !!q;
   $('#sum').disabled = !q;
-  // 순위 모드에서는 'TOP 5만 표시', 추정매출/주문수 모드에서는 '검색어별로 합쳐 보기'
+  // 순위 모드에서는 'TOP 10만 표시'(기본 켜짐), 추정매출/주문수 모드에서는 '검색어별로 합쳐 보기'
   $('#sumWrap').style.display = metric === 'rank' ? 'none' : '';
   $('#top10Wrap').style.display = metric === 'rank' ? '' : 'none';
   const top10 = metric === 'rank' && $('#top10').checked;
@@ -539,12 +545,12 @@ function drawChart(){
     } else {
       // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 추정매출 상위 8개
       const mine = S.fpicked;
-      ids = mine.length ? mine : match.slice(0,8);
-      hint.textContent = mine.length ? '아래 랭킹 표에서 고른 상품 표시 · 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)' : match.length ? `조건에 맞는 상품 ${match.length}개${match.length>8?' 중 추정매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
+      ids = mine.length ? mine : match.slice(0,MAXPICK);
+      hint.textContent = mine.length ? '아래 랭킹 표에서 고른 상품 표시 · 상품을 눌러 추가하거나 뺄 수 있어요 (최대 10개)' : match.length ? `조건에 맞는 상품 ${match.length}개${match.length>MAXPICK?` 중 추정매출 상위 ${MAXPICK}개`:''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
     }
   } else {
     ids = S.picked;
-    hint.textContent = '아래 랭킹 표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)';
+    hint.textContent = '아래 랭킹 표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 10개)';
   }
   S.shown = ids || [];
   if(!datasets) datasets = ids.map(id => ({
@@ -552,11 +558,11 @@ function drawChart(){
     label: `${product(id).brand||''} · ${(product(id).name||'').slice(0,20)}`,
     data: bs.map(b => { const r = b.map.get(id); return r ? r[metric] : null; })
   }));
-  // TOP 5만: 6위 이하 시점은 맨 아래 '5위 미만' 칸(6)에 점을 찍고, 라벨/툴팁은 실제 순위(d.real)로. 기간 내내 5위 밖인 상품은 빼기
+  // TOP 10만: 11위 이하 시점은 맨 아래 '10위 미만' 칸(11)에 점을 찍고, 라벨/툴팁은 실제 순위(d.real)로. 기간 내내 10위 밖인 상품은 빼기
   if(top10){
-    datasets = datasets.filter(d => d.data.some(v => v != null && v <= 5));
-    datasets.forEach(d => { d.real = d.data.slice(); d.data = d.data.map(v => v == null ? null : Math.min(v, 6)); });
-    if(!datasets.length) hint.textContent += ' · 기간 중 5위 안에 든 상품이 없어요';
+    datasets = datasets.filter(d => d.data.some(v => v != null && v <= 10));
+    datasets.forEach(d => { d.real = d.data.slice(); d.data = d.data.map(v => v == null ? null : Math.min(v, 11)); });
+    if(!datasets.length) hint.textContent += ' · 기간 중 10위 안에 든 상품이 없어요';
   }
   // 순위에서 빠진 시점: 딜 종료 시각이 지났으면 '딜 종료'(처음 한 번만), 아니면 '100위권 밖'으로 맨 아래 칸에 점을 찍는다
   if(metric === 'rank') datasets.forEach(d => {
@@ -573,12 +579,12 @@ function drawChart(){
   datasets.forEach((d,i) => Object.assign(d, {borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length], tension:0, pointRadius:3, borderWidth:2, spanGaps:false, clip:false}));
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
   // 순위 축: 실제 그려진 순위 범위에 맞추고 위아래로 반 칸 여백, 눈금은 정수만
-  const rs = top10 ? [1, 6] : datasets.flatMap(d => d.data).filter(v => v != null);
+  const rs = top10 ? [1, 11] : datasets.flatMap(d => d.data).filter(v => v != null);
   const rMin = rs.length ? Math.min(...rs) : 1, rMax = rs.length ? Math.max(...rs) : 10;
   // 눈금은 일정한 간격만: 범위 10 이하는 1위마다, 25 이하는 5, 60 이하는 10, 그 이상은 20 (1위는 범위 안이면 항상 표시)
   const span = rMax - rMin, step = span <= 10 ? 1 : span <= 25 ? 5 : span <= 60 ? 10 : 20;
-  const yBase = Math.ceil(rMax / step) * step, OUTY = top10 ? 6 : hasOut ? yBase + step : null;
-  const yLo = Math.max(0.5, Math.floor(rMin / step) * step - 0.5), yHi = OUTY || yBase + 0.5;   // '5위 미만'/'100위권 밖' 칸은 X축 바로 위(값 0처럼)
+  const yBase = Math.ceil(rMax / step) * step, OUTY = top10 ? 11 : hasOut ? yBase + step : null;
+  const yLo = Math.max(0.5, Math.floor(rMin / step) * step - 0.5), yHi = OUTY || yBase + 0.5;   // '10위 미만'/'100위권 밖' 칸은 X축 바로 위(값 0처럼)
   if(OUTY) datasets.forEach(d => { if(d.status) d.data = d.data.map((v, i) => d.status[i] ? OUTY : v); });
   const yRank = {reverse:true, min: yLo, max: yHi,
     afterBuildTicks: ax => {
@@ -587,7 +593,7 @@ function drawChart(){
       for(let v = Math.ceil(yLo / step) * step; v <= yHi; v += step) if(v > 1 && v >= yLo) t.push(v);
       ax.ticks = t.map(value => ({value}));
     },
-    title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => top10 && v === 6 ? '5위 미만' : v === OUTY ? '100위권 밖' : v + '위'}, grid:{color:grid}};
+    title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => top10 && v === 11 ? '10위 미만' : v === OUTY ? '100위권 밖' : v + '위'}, grid:{color:grid}};
   const yVal = {beginAtZero:true, title:{display:true,text:METRIC[metric]+(metric==='sales'?' (백만원)':''),color:tick}, ticks:{color:tick, callback:v=>metric==='sales'?won(v):fmt(v)}, grid:{color:grid}};
   // 각 점 위에 직전 점 대비 증감 표시 (순위: 오르면 ▲, 추정매출: 백만원 단위, 1백만 미만은 소수 첫째 자리, 주문수: 개수)
   const cs = getComputedStyle(document.documentElement);
@@ -604,7 +610,7 @@ function drawChart(){
       let prev = null;
       ds.data.forEach((v0, i) => {
         if(v0 == null) return;
-        const v = ds.real ? ds.real[i] : v0;   // TOP 5 모드에선 점 위치와 별개로 실제 순위로 표시
+        const v = ds.real ? ds.real[i] : v0;   // TOP 10 모드에선 점 위치와 별개로 실제 순위로 표시
         const st = ds.status && ds.status[i];
         items.push({i, v, prev: st ? null : prev, pt: meta.data[i], st});
         prev = st ? null : v;

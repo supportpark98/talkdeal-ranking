@@ -93,6 +93,23 @@ body.resizing{cursor:col-resize;user-select:none}
 th{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
 th.sorted{color:var(--text)}
 td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+th.num{text-align:left}
+/* 정렬 방향 표시 */
+th.sorted[data-dir="1"]::after{content:' ▲';font-size:10px}
+th.sorted[data-dir="-1"]::after{content:' ▼';font-size:10px}
+/* 좌우로 끌어서 이동 */
+.tablewrap.grab{cursor:grabbing;user-select:none}
+.tablewrap.grab tr{cursor:grabbing}
+/* PC: 순위·변동·상품명 열은 좌우로 이동해도 고정 */
+@media (min-width:900px){
+  #rank-table th:nth-child(-n+3), #rank-table td:nth-child(-n+3){position:sticky;z-index:2;background:var(--card)}
+  #rank-table th:nth-child(1), #rank-table td:nth-child(1){left:0}
+  #rank-table th:nth-child(2), #rank-table td:nth-child(2){left:var(--l2,56px)}
+  #rank-table th:nth-child(3), #rank-table td:nth-child(3){left:var(--l3,116px);box-shadow:inset -1px 0 0 var(--line)}
+  #rank-table tbody tr:hover td:nth-child(-n+3){background:var(--bg)}
+  #rank-table tbody tr.sel td:nth-child(-n+3){background:var(--sel)}
+  #rank-table td[colspan]{position:static}
+}
 tbody tr{cursor:pointer}
 tbody tr:hover{background:var(--bg)}
 tbody tr.sel{background:var(--sel)}
@@ -169,8 +186,9 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <button id="xlsx">엑셀 다운로드</button>
     </h2>
     <div class="hint" id="cmp"></div>
+    <div class="hint">*PC에서는 표를 마우스로 잡고 좌우로 끌거나 Shift+휠로 옆으로 이동할 수 있어요. 순위·상품명 열은 고정돼요.</div>
     <div class="tablewrap">
-      <table>
+      <table id="rank-table">
         <colgroup id="cols">
           <col data-c="rank" style="width:56px"><col data-c="chg" style="width:60px"><col data-c="name" style="width:340px">
           <col data-c="brand" style="width:120px"><col data-c="deal" style="width:96px"><col data-c="live" style="width:104px">
@@ -448,7 +466,7 @@ function tableRows(){
 }
 function render(){
   if(!S.cur) return;
-  $$('th[data-k]').forEach(th => th.classList.toggle('sorted', th.dataset.k===S.sort.k));
+  $$('th[data-k]').forEach(th => { const on = th.dataset.k===S.sort.k; th.classList.toggle('sorted', on); if(on) th.dataset.dir = S.sort.dir; else delete th.dataset.dir; });
   const rs = tableRows();
   $('#rows').innerHTML = rs.length ? rs.map(r => `
     <tr data-id="${r.productId}" class="${(S.shown || S.picked).includes(String(r.productId))?'sel':''}">
@@ -489,7 +507,7 @@ function setupResize(){
       e.preventDefault(); e.stopPropagation();
       const col = cols[i], x0 = e.clientX, w0 = col.getBoundingClientRect().width || parseInt(col.style.width);
       h.classList.add('on'); document.body.classList.add('resizing'); h.setPointerCapture(e.pointerId);
-      const move = ev => { col.style.width = Math.max(40, Math.round(w0 + ev.clientX - x0)) + 'px'; };
+      const move = ev => { col.style.width = Math.max(40, Math.round(w0 + ev.clientX - x0)) + 'px'; updateSticky(); };
       const up = () => {
         h.classList.remove('on'); document.body.classList.remove('resizing');
         h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up);
@@ -501,8 +519,32 @@ function setupResize(){
     h.addEventListener('dblclick', e => {   // 더블클릭하면 기본 너비로
       e.stopPropagation(); delete saved[cols[i].dataset.c]; cols[i].style.width = cols[i].dataset.w;
       try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch(e){}
+      updateSticky();
     });
   });
+  updateSticky();
+  setupDragScroll();
+}
+// 고정 열의 왼쪽 위치를 실제 열 너비에 맞춘다
+function updateSticky(){
+  const t = document.getElementById('rank-table'), th = t && t.querySelectorAll('thead th'); if(!th || th.length < 3) return;
+  const w1 = th[0].getBoundingClientRect().width, w2 = th[1].getBoundingClientRect().width;
+  t.style.setProperty('--l2', w1 + 'px'); t.style.setProperty('--l3', (w1 + w2) + 'px');
+}
+// 마우스로 표를 잡고 끌면 좌우로 이동. 5px 넘게 끌었으면 그 클릭은 상품 선택으로 치지 않는다
+function setupDragScroll(){
+  const w = document.querySelector('.tablewrap'); let st = null, dragged = false;
+  w.addEventListener('pointerdown', e => {
+    if(e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('.rz, a, input, select, button')) return;
+    st = {x: e.clientX, s: w.scrollLeft}; dragged = false;
+  });
+  window.addEventListener('pointermove', e => {
+    if(!st) return; const dx = e.clientX - st.x;
+    if(!dragged && Math.abs(dx) > 5){ dragged = true; w.classList.add('grab'); window.getSelection().removeAllRanges(); }
+    if(dragged) w.scrollLeft = st.s - dx;
+  });
+  window.addEventListener('pointerup', () => { if(st){ st = null; w.classList.remove('grab'); } });
+  w.addEventListener('click', e => { if(dragged){ e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
 }
 
 // ---- 추이 그래프 ----

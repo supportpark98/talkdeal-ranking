@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 API = (
     "https://store.kakao.com/a/f-s/ranking/product-sale-ranking"
     "?page=0&rankingTabType=contProduct&categoryType={cat}"
-    "&periodType=DAILY&size={size}&displayPlaceType=RANKING_TAB"
+    "&periodType={period}&size={size}&displayPlaceType=RANKING_TAB"
 )
 # 대시보드 드롭다운 순서. groupId는 톡딜 랭킹 페이지 주소의 groupId 값.
 CATEGORIES = [
@@ -46,8 +46,8 @@ COLS = [
 ]
 
 
-def fetch(cat, size, retries=3):
-    url = API.format(cat=cat, size=size) + f"&_={int(time.time() * 1000)}"
+def fetch(cat, size, retries=3, period="DAILY"):
+    url = API.format(cat=cat, size=size, period=period) + f"&_={int(time.time() * 1000)}"
     last_err = None
     for attempt in range(retries):
         try:
@@ -163,6 +163,8 @@ def main():
     ap.add_argument("--size", type=int, default=100)
     ap.add_argument("--out", default="data")
     ap.add_argument("--cat", action="append", help="특정 카테고리만 (예: CHILD)")
+    # 임시: 갱신 시점 테스트용으로 실시간(HOURLY) 전체 랭킹도 data/test_hourly/에 따로 저장 (대시보드에는 안 나옴)
+    ap.add_argument("--hourly-test", action="store_true")
     args = ap.parse_args()
 
     targets = [c for c in CATEGORIES if not args.cat or c["key"] in args.cat]
@@ -182,6 +184,15 @@ def main():
             failed.append(c["key"])
             print(f"::warning::{c['name']} 실패: {e}")
     rebuild_index(args.out)
+    if args.hourly_test:
+        try:
+            data = fetch("ALL", args.size, period="HOURLY")
+            picked = [pick(p) for p in data.get("products", [])]
+            save_snapshot(os.path.join(args.out, "test_hourly"), "ALL", t_iso, data.get("aggregatedAt"),
+                          [r for r, _ in picked], {str(r["productId"]): m for r, m in picked})
+            print(f"실시간 전체(테스트): {len(picked)}개 (집계 {data.get('aggregatedAt')})")
+        except Exception as e:  # noqa: BLE001
+            print(f"::warning::실시간 전체(테스트) 실패: {e}")
     if len(failed) == len(targets):
         sys.exit("모든 카테고리 수집 실패")
 

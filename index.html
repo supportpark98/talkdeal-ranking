@@ -193,7 +193,7 @@ function render(){
       <td class="pname"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a><div class="cat">${esc(p.category)}</div></td>
       <td>${esc(p.brand)}</td>
       <td class="num">${fmt(p.price)}원</td>
-      <td class="num disc">${p.discountRate ? p.discountRate+'%' : '-'}</td>
+      <td class="num disc">${p.discountRate ? Math.round(p.discountRate)+'%' : '-'}</td>
       <td class="num">${fmt(p.ordering)}${p.dOrdering ? `<span class="delta ${p.dOrdering>0?'up':'down'}">${p.dOrdering>0?'+':''}${fmt(p.dOrdering)}</span>`:''}</td>
     </tr>`).join('') : '<tr><td colspan="8" class="empty">조건에 맞는 상품이 없어요</td></tr>';
   document.querySelectorAll('#rows tr[data-id]').forEach(tr => tr.onclick = e => {

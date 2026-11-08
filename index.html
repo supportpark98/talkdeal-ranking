@@ -512,7 +512,7 @@ function drawChart(){
   }));
   datasets.forEach((d,i) => Object.assign(d, {borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length], tension:0, pointRadius:3, borderWidth:2, spanGaps:false}));
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
-  const yRank = {reverse:true, min:1, suggestedMax:20, title:{display:true,text:'순위',color:tick}, ticks:{precision:0,color:tick}, grid:{color:grid}};
+  const yRank = {reverse:true, min:0, suggestedMax:20, afterBuildTicks: ax => { ax.ticks = ax.ticks.map(t => t.value === 0 ? {value:1} : t); }, title:{display:true,text:'순위',color:tick}, ticks:{precision:0,color:tick}, grid:{color:grid}};
   const yVal = {beginAtZero:true, title:{display:true,text:METRIC[metric]+(metric==='sales'?' (원)':''),color:tick}, ticks:{color:tick, callback:v=>metric==='sales'?won(v):fmt(v)}, grid:{color:grid}};
   // 각 점 위에 직전 점 대비 증감 표시 (순위: 오르면 ▲, 예상매출: 백만원 단위 정수, 주문수: 개수)
   const cs = getComputedStyle(document.documentElement);
@@ -537,7 +537,7 @@ function drawChart(){
     ctx.restore();
   }};
   S.chart = new Chart($('#chart'), {type:'line', data:{labels: bs.map(b=>b.label), datasets}, plugins:[deltaLabels], options:{
-    responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false}, layout:{padding:{top:16, left:4, right:16}},
+    responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false}, layout:{padding:{top:20, left:4, right:20}},
     scales:{ y: metric==='rank' ? yRank : yVal, x:{ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
       tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw==null?'순위권 밖': metric==='rank' ? c.raw+'위' : metric==='sales' ? won(c.raw)+'원' : fmt(c.raw)}`}} }

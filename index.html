@@ -55,8 +55,15 @@ button:disabled{opacity:.5;cursor:default}
 .toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
 .tablewrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;min-width:1380px}
-th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+table{border-collapse:collapse;table-layout:fixed;width:max-content;min-width:100%}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
+th{position:relative}
+.rz{position:absolute;top:0;right:0;width:8px;height:100%;cursor:col-resize;z-index:1}
+.rz::after{content:'';position:absolute;top:25%;bottom:25%;right:3px;border-right:1px solid var(--line)}
+.rz:hover::after,.rz.on::after{border-right:2px solid var(--muted)}
+body.resizing{cursor:col-resize;user-select:none}
+.pwrap{display:flex;gap:10px;align-items:center}
+.ptext{min-width:0}
 th{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
 th.sorted{color:var(--text)}
 td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -66,8 +73,8 @@ tbody tr.sel{background:var(--sel)}
 .rank{font-weight:800;font-size:16px;width:36px;text-align:center}
 .chg{font-size:12px;font-weight:700;white-space:nowrap;width:52px}
 .up{color:var(--up)} .down{color:var(--down)} .new{color:var(--new)} .same{color:var(--muted)}
-.thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--line);display:block}
-.pname{max-width:320px;min-width:220px}
+.thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--line);display:block;flex:none}
+.pname{}
 .strike{color:var(--muted);text-decoration:line-through}
 .benefit{color:var(--up);font-weight:700}
 .small{font-size:12px;color:var(--muted);white-space:nowrap}
@@ -142,16 +149,21 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     </div>
     <div class="tablewrap">
       <table>
+        <colgroup id="cols">
+          <col data-c="rank" style="width:56px"><col data-c="chg" style="width:60px"><col data-c="name" style="width:340px">
+          <col data-c="brand" style="width:120px"><col data-c="deal" style="width:96px"><col data-c="live" style="width:104px">
+          <col data-c="sales" style="width:150px"><col data-c="ordering" style="width:130px"><col data-c="orig" style="width:100px">
+          <col data-c="price" style="width:100px"><col data-c="benefit" style="width:100px"><col data-c="disc" style="width:70px">
+        </colgroup>
         <thead><tr>
-          <th data-k="rank" class="num">순위</th><th data-k="chg">변동</th><th></th>
+          <th data-k="rank" class="num">순위</th><th data-k="chg">변동</th>
           <th data-k="name">상품명</th><th data-k="brand">브랜드</th>
+          <th data-k="dealStartMs" class="num">딜 오픈일자</th><th data-k="liveMs" class="num">라이브 일자</th>
+          <th data-k="sales" class="num">예상매출</th><th data-k="ordering" class="num">주문중</th>
           <th data-k="originalPrice" class="num">정상가</th><th data-k="price" class="num">톡딜가</th>
           <th data-k="maxBenefitPrice" class="num">최대혜택가</th><th data-k="discountRate" class="num">할인율</th>
-          <th data-k="ordering" class="num">주문중</th><th data-k="sales" class="num">예상매출</th>
-          <th data-k="dealStartMs" class="num">딜 시작일</th><th data-k="avgOrdering" class="num">일평균 주문</th>
-          <th data-k="avgSales" class="num">일평균 매출</th><th data-k="liveMs" class="num">라이브 일자</th>
         </tr></thead>
-        <tbody id="rows"><tr><td colspan="15" class="empty">불러오는 중…</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="12" class="empty">불러오는 중…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -291,7 +303,7 @@ async function update(){
 
   if(!S.inRange.length){
     $('#rangeinfo').textContent = '선택한 기간에 수집된 데이터가 없어요.';
-    $('#rows').innerHTML = '<tr><td colspan="15" class="empty">선택한 기간에 수집된 데이터가 없어요</td></tr>';
+    $('#rows').innerHTML = '<tr><td colspan="12" class="empty">선택한 기간에 수집된 데이터가 없어요</td></tr>';
     $('#tiles').innerHTML = ''; $('#cmp').textContent = ''; S.cur = null; drawChart(); return;
   }
   S.cur = S.inRange[S.inRange.length-1];
@@ -370,26 +382,52 @@ function render(){
     <tr data-id="${r.productId}" class="${S.picked.includes(String(r.productId))?'sel':''}">
       <td class="rank">${r.rank}</td>
       <td class="chg">${chgHTML(r)}</td>
-      <td><img class="thumb" loading="lazy" src="${esc(r.image)}" alt=""></td>
-      <td class="pname">${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></td>
+      <td class="pname"><div class="pwrap"><img class="thumb" loading="lazy" src="${esc(r.image)}" alt="">
+        <div class="ptext">${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></div></div></td>
       <td>${esc(r.brand)}</td>
+      <td class="num">${mdLab(r.dealStartMs)}${r.dealDays ? `<span class="delta same">${r.dealDays}일차</span>` : ''}</td>
+      <td class="num">${r.liveMs ? lab(r.liveMs) : '-'}</td>
+      <td class="num">${r.sales!=null ? won(r.sales)+'원' : '-'}${deltaHTML(r.dSales, won)}${r.avgSales!=null ? `<span class="delta same">(일평균 ${won(r.avgSales)}원)</span>` : ''}</td>
+      <td class="num">${fmt(r.ordering)}${deltaHTML(r.dOrdering, fmt)}${r.avgOrdering!=null ? `<span class="delta same">(일평균 ${fmt(r.avgOrdering)})</span>` : ''}</td>
       <td class="num strike">${r.originalPrice && r.originalPrice !== r.price ? fmt(r.originalPrice)+'원' : '-'}</td>
       <td class="num">${fmt(r.price)}원</td>
       <td class="num benefit">${r.maxBenefitPrice ? fmt(r.maxBenefitPrice)+'원' : '-'}</td>
       <td class="num disc">${r.discountRate ? Math.round(r.discountRate)+'%' : '-'}</td>
-      <td class="num">${fmt(r.ordering)}${deltaHTML(r.dOrdering, fmt)}</td>
-      <td class="num">${r.sales!=null ? won(r.sales)+'원' : '-'}${deltaHTML(r.dSales, won)}</td>
-      <td class="num">${mdLab(r.dealStartMs)}${r.dealDays ? `<span class="delta same">${r.dealDays}일차</span>` : ''}</td>
-      <td class="num">${r.avgOrdering!=null ? fmt(r.avgOrdering) : '-'}</td>
-      <td class="num">${r.avgSales!=null ? won(r.avgSales)+'원' : '-'}</td>
-      <td class="num">${r.liveMs ? lab(r.liveMs) : '-'}</td>
-    </tr>`).join('') : '<tr><td colspan="15" class="empty">조건에 맞는 상품이 없어요</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="12" class="empty">조건에 맞는 상품이 없어요</td></tr>';
   $$('#rows tr[data-id]').forEach(tr => tr.onclick = e => {
     if(e.target.closest('a')) return;
     const id = tr.dataset.id, i = S.picked.indexOf(id);
     if(i>=0) S.picked.splice(i,1); else { if(S.picked.length>=8) S.picked.shift(); S.picked.push(id); }
     if($('#cq').value){ $('#cq').value = ''; }
     render(); drawChart();
+  });
+}
+
+// ---- 열 너비 드래그 조정 (브라우저에 기억) ----
+function setupResize(){
+  const cols = $$('#cols col'), ths = $$('thead th'), KEY = 'talkdeal-colw';
+  let saved = {}; try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e){}
+  cols.forEach(c => { if(saved[c.dataset.c]) c.style.width = saved[c.dataset.c] + 'px'; });
+  ths.forEach((th, i) => {
+    const h = document.createElement('span'); h.className = 'rz'; th.appendChild(h);
+    h.addEventListener('click', e => e.stopPropagation());   // 정렬 클릭과 구분
+    h.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const col = cols[i], x0 = e.clientX, w0 = col.getBoundingClientRect().width || parseInt(col.style.width);
+      h.classList.add('on'); document.body.classList.add('resizing'); h.setPointerCapture(e.pointerId);
+      const move = ev => { col.style.width = Math.max(40, Math.round(w0 + ev.clientX - x0)) + 'px'; };
+      const up = () => {
+        h.classList.remove('on'); document.body.classList.remove('resizing');
+        h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up);
+        saved[col.dataset.c] = parseInt(col.style.width);
+        try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch(e){}
+      };
+      h.addEventListener('pointermove', move); h.addEventListener('pointerup', up);
+    });
+    h.addEventListener('dblclick', e => {   // 더블클릭하면 기본 너비로
+      e.stopPropagation(); delete saved[cols[i].dataset.c]; cols[i].style.width = cols[i].dataset.w;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch(e){}
+    });
   });
 }
 
@@ -458,9 +496,10 @@ async function downloadXlsx(){
     const dt = ms => { if(ms==null) return null; const p = kparts(ms); return `${p.y}-${pad(p.m)}-${pad(p.d)} ${pad(p.h)}:00`; };
     const chgText = r => !S.base ? '' : r.chg===999 ? 'NEW' : r.chg;
     const sheet1 = tableRows().map(r => ({'순위':r.rank, '변동':chgText(r), '상품명':r.name, '브랜드':r.brand, '카테고리':r.category,
-      '톡딜가':r.price, '할인율(%)':r.discountRate, '주문중':r.ordering, '주문중 증감':r.dOrdering, '예상매출':r.sales, '예상매출 증감':r.dSales,
-      '정상가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '딜 시작':dt(r.dealStartMs), '딜 종료':dt(r.dealEndMs), '딜 운영일수':r.dealDays,
-      '일평균 주문':r.avgOrdering!=null?Math.round(r.avgOrdering):null, '일평균 예상매출':r.avgSales!=null?Math.round(r.avgSales):null, '라이브 일자':dt(r.liveMs),
+      '딜 오픈일자':dt(r.dealStartMs), '딜 운영일수':r.dealDays, '딜 종료':dt(r.dealEndMs), '라이브 일자':dt(r.liveMs),
+      '예상매출':r.sales, '예상매출 증감':r.dSales, '일평균 예상매출':r.avgSales!=null?Math.round(r.avgSales):null,
+      '주문중':r.ordering, '주문중 증감':r.dOrdering, '일평균 주문':r.avgOrdering!=null?Math.round(r.avgOrdering):null,
+      '정상가':r.originalPrice, '톡딜가':r.price, '최대혜택가':r.maxBenefitPrice, '할인율(%)':r.discountRate,
       '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':r.url}));
     const sheet2 = [];
     S.inRange.forEach(s => s.rows.forEach(r => { const p = product(r.productId); sheet2.push({'수집시각':lab(s.t), '순위':r.rank, '상품명':p.name, '브랜드':p.brand, '카테고리':p.category,
@@ -468,7 +507,7 @@ async function downloadXlsx(){
       '정상가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '라이브 일자':dt(ymd(r.liveStartAt)), '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':p.url}); }));
     const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.json_to_sheet(sheet1), ws2 = XLSX.utils.json_to_sheet(sheet2);
-    ws1['!cols'] = [6,6,50,14,14,10,8,9,10,12,12,10,10,17,17,10,10,12,17,9,8,8,11,45].map(w=>({wch:w}));
+    ws1['!cols'] = [6,6,50,14,14,17,10,17,17,12,12,14,9,10,10,10,10,10,8,9,8,8,11,45].map(w=>({wch:w}));
     ws2['!cols'] = [12,6,50,14,14,10,8,9,12,10,10,17,9,8,8,11,45].map(w=>({wch:w}));
     XLSX.utils.book_append_sheet(wb, ws1, '랭킹(종료시점)');
     XLSX.utils.book_append_sheet(wb, ws2, '기간 전체 기록');
@@ -484,7 +523,7 @@ async function init(){
     S.index = await getJSON('data/index.json');
     if(!S.index.categories || !S.index.categories.length) throw new Error('empty');
   }catch(e){
-    $('#rows').innerHTML = '<tr><td colspan="15" class="empty">아직 수집된 데이터가 없어요. 첫 수집 후에 표시됩니다.</td></tr>';
+    $('#rows').innerHTML = '<tr><td colspan="12" class="empty">아직 수집된 데이터가 없어요. 첫 수집 후에 표시됩니다.</td></tr>';
     $('#basis').textContent = '데이터 없음'; return;
   }
   S.index.firstMs = Date.parse(S.index.first); S.index.lastMs = Date.parse(S.index.last);
@@ -502,6 +541,8 @@ async function init(){
   $('#q').oninput = render; $('#filter').onchange = render; $('#subcat').onchange = render;
   $('#cq').oninput = drawChart; $('#sum').onchange = drawChart;
   $('#xlsx').onclick = downloadXlsx;
+  $$('#cols col').forEach(c => c.dataset.w = c.style.width);
+  setupResize();
   $$('th[data-k]').forEach(th => th.onclick = () => {
     const k = th.dataset.k; S.sort = {k, dir: S.sort.k===k ? -S.sort.dir : (['rank','name','brand'].includes(k)?1:-1)}; render();
   });

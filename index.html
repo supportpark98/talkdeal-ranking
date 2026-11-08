@@ -47,6 +47,7 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .range .quick{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .rangeinfo{font-size:12px;color:var(--muted);margin-top:8px}
 .rangeinfo:empty{display:none}
+.rangeinfo + .rangeinfo{margin-top:4px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
 .tile .k{color:var(--muted);font-size:12px}
@@ -120,8 +121,9 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     <div class="toolbar searchbar">
       <span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
       <span class="grp"><span class="lbl">세부 카테고리</span><select id="csub"><option value="">전체</option></select></span>
-      <input id="cq" type="search" placeholder="브랜드 또는 키워드 검색, 쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)">
+      <input id="cq" type="search" placeholder="브랜드 또는 키워드 검색">
     </div>
+    <div class="rangeinfo">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</div>
     <div class="rangeinfo" id="rangeinfo"></div>
     <div class="rangeinfo">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</div>
   </section>

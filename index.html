@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>톡딜 유아동 랭킹</title>
+<title>톡딜 실시간 랭킹</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
 <style>
@@ -20,6 +20,10 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:Pretendard,-app
 header{background:var(--accent);color:var(--accent-ink);padding:18px 16px}
 h1{margin:0;font-size:20px;font-weight:800}
 .sub{font-size:13px;opacity:.8;margin-top:2px}
+.catpick{font-weight:700;display:flex;align-items:center;gap:6px}
+.catpick select{font-size:15px;font-weight:700;padding:7px 10px;border-color:rgba(0,0,0,.2);background:#fff;color:#1a1d23}
+.tag{display:inline-block;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:4px;vertical-align:1px}
+.tag.rise{background:#fde8e8;color:#c8323a} .tag.live{background:#e5484d;color:#fff}
 .wrap{max-width:1180px;margin:0 auto}
 main{padding:16px}
 select,input,button{font:inherit;color:var(--text)}
@@ -64,7 +68,7 @@ tbody tr.sel{background:var(--sel)}
 .up{color:var(--up)} .down{color:var(--down)} .new{color:var(--new)} .same{color:var(--muted)}
 .thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--line);display:block}
 .pname{max-width:380px}
-.pname a{color:inherit;text-decoration:none;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pname a{color:inherit;text-decoration:none;font-weight:600;display:-webkit-box;display:-webkit-inline-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pname a:hover{text-decoration:underline}
 .pname .cat{font-size:12px;color:var(--muted)}
 .disc{color:var(--up);font-weight:700}
@@ -76,8 +80,10 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
 <body>
 <header>
   <div class="wrap">
-    <h1>톡딜 출산/유아동 실시간 랭킹</h1>
-    <div class="sub" id="basis">불러오는 중…</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
+      <div><h1>톡딜 실시간 랭킹</h1><div class="sub" id="basis">불러오는 중…</div></div>
+      <label class="catpick">카테고리 <select id="cat"></select></label>
+    </div>
   </div>
 </header>
 <main class="wrap">
@@ -164,7 +170,7 @@ const COLORS = ['#e5484d','#2f6fde','#12a150','#f5a524','#8e4ec6','#0ea5a4','#d6
 const DAY = 864e5, KST = 9*36e5;
 const METRIC = {rank:'순위', sales:'예상매출', ordering:'주문중'};
 
-const S = {index:null, products:{}, months:{}, snaps:[], inRange:[], cur:null, base:null,
+const S = {index:null, cat:null, products:{}, prodLoaded:{}, months:{}, snaps:[], inRange:[], cur:null, base:null,
   start:0, end:0, metric:'rank', gran:'hour', sort:{k:'rank',dir:1}, picked:[], chart:null};
 
 // ---- 시간 도우미 (모든 표시는 한국 시간) ----
@@ -215,12 +221,14 @@ function setRange(s, e, syncPickers){
 
 // ---- 데이터 로딩 ----
 async function ensureMonths(s, e){
-  const need = [];
+  const need = [], needP = [];
   const ps = kparts(s - 31*DAY), pe = kparts(e);   // 시작 이전 비교용으로 한 달 앞까지
   for(let y=ps.y, m=ps.m; y<pe.y || (y===pe.y && m<=pe.m); m===12 ? (y++, m=1) : m++){
-    const key = `${y}-${pad(m)}`;
-    if(S.index.months.includes(key) && !S.months[key]) need.push(key);
+    const mk = `${y}-${pad(m)}`, key = `${S.cat.key}/${mk}`;
+    if(S.cat.months.includes(mk) && !S.months[key]) need.push(key);
+    if(S.index.productMonths.includes(mk) && !S.prodLoaded[mk]) needP.push(mk);
   }
+  await Promise.all(needP.map(async mk => { Object.assign(S.products, await getJSON(`data/products/${mk}.json`)); S.prodLoaded[mk] = true; }));
   await Promise.all(need.map(async k => {
     const j = await getJSON(`data/monthly/${k}.json`);
     S.months[k] = j.snaps.map(sn => ({t: Date.parse(sn.t), agg: sn.agg, rows: sn.rows.map(r => {
@@ -229,7 +237,7 @@ async function ensureMonths(s, e){
       return o;
     })}));
   }));
-  S.snaps = Object.values(S.months).flat().sort((a,b)=>a.t-b.t);
+  S.snaps = Object.entries(S.months).filter(([k]) => k.startsWith(S.cat.key+'/')).flatMap(([,v]) => v).sort((a,b)=>a.t-b.t);
 }
 
 function product(id){ return S.products[id] || {}; }
@@ -261,7 +269,7 @@ async function update(){
     r.dOrdering = b && r.ordering!=null && b.ordering!=null ? r.ordering - b.ordering : null;
     r.dSales = b && r.sales!=null && b.sales!=null ? r.sales - b.sales : null;
   });
-  $('#basis').textContent = `마지막 수집 ${lab(S.index.lastMs)} · 전체 ${S.index.count}회 수집`;
+  $('#basis').textContent = `${S.cat.name} · 마지막 수집 ${lab(S.index.lastMs)}`;
   $('#rangeinfo').textContent = `${lab(S.inRange[0].t)} ~ ${lab(S.cur.t)} · 이 기간 수집 ${S.inRange.length}회`;
   $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `변동은 기간 시작(${lab(S.base.t)}) 대비, 표는 ${lab(S.cur.t)} 기준` : `변동은 직전 수집(${lab(S.base.t)}) 대비`;
   if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
@@ -312,7 +320,7 @@ function render(){
       <td class="rank">${r.rank}</td>
       <td class="chg">${chgHTML(r)}</td>
       <td><img class="thumb" loading="lazy" src="${esc(r.image)}" alt=""></td>
-      <td class="pname"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></td>
+      <td class="pname">${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></td>
       <td>${esc(r.brand)}</td>
       <td class="num">${fmt(r.price)}원</td>
       <td class="num disc">${r.discountRate ? Math.round(r.discountRate)+'%' : '-'}</td>
@@ -392,18 +400,20 @@ async function downloadXlsx(){
     if(typeof XLSX === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
     const chgText = r => !S.base ? '' : r.chg===999 ? 'NEW' : r.chg;
     const sheet1 = tableRows().map(r => ({'순위':r.rank, '변동':chgText(r), '상품명':r.name, '브랜드':r.brand, '카테고리':r.category,
-      '톡딜가':r.price, '할인율(%)':r.discountRate, '주문중':r.ordering, '주문중 증감':r.dOrdering, '예상매출':r.sales, '예상매출 증감':r.dSales, '상품ID':r.productId, '링크':r.url}));
+      '톡딜가':r.price, '할인율(%)':r.discountRate, '주문중':r.ordering, '주문중 증감':r.dOrdering, '예상매출':r.sales, '예상매출 증감':r.dSales,
+      '정가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':r.url}));
     const sheet2 = [];
     S.inRange.forEach(s => s.rows.forEach(r => { const p = product(r.productId); sheet2.push({'수집시각':lab(s.t), '순위':r.rank, '상품명':p.name, '브랜드':p.brand, '카테고리':p.category,
-      '톡딜가':r.price, '할인율(%)':r.discountRate, '주문중':r.ordering, '예상매출':r.sales, '상품ID':r.productId, '링크':p.url}); }));
+      '톡딜가':r.price, '할인율(%)':r.discountRate, '주문중':r.ordering, '예상매출':r.sales,
+      '정가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':p.url}); }));
     const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.json_to_sheet(sheet1), ws2 = XLSX.utils.json_to_sheet(sheet2);
-    ws1['!cols'] = [6,6,50,14,14,10,8,9,10,12,12,11,45].map(w=>({wch:w}));
-    ws2['!cols'] = [12,6,50,14,14,10,8,9,12,11,45].map(w=>({wch:w}));
+    ws1['!cols'] = [6,6,50,14,14,10,8,9,10,12,12,10,10,9,8,8,11,45].map(w=>({wch:w}));
+    ws2['!cols'] = [12,6,50,14,14,10,8,9,12,10,10,9,8,8,11,45].map(w=>({wch:w}));
     XLSX.utils.book_append_sheet(wb, ws1, '랭킹(종료시점)');
     XLSX.utils.book_append_sheet(wb, ws2, '기간 전체 기록');
     const f = ms => { const p = kparts(ms); return `${p.y}${pad(p.m)}${pad(p.d)}-${pad(p.h)}`; };
-    XLSX.writeFile(wb, `톡딜랭킹_${f(S.inRange[0].t)}_${f(S.cur.t)}.xlsx`);
+    XLSX.writeFile(wb, `톡딜랭킹_${S.cat.name.replace('/','')}_${f(S.inRange[0].t)}_${f(S.cur.t)}.xlsx`);
   }catch(e){ alert('엑셀 파일을 만들지 못했어요: ' + e.message); }
   btn.disabled = false; btn.textContent = '엑셀 다운로드';
 }
@@ -411,13 +421,22 @@ async function downloadXlsx(){
 // ---- 시작 ----
 async function init(){
   try{
-    [S.index, S.products] = await Promise.all([getJSON('data/index.json'), getJSON('data/products.json')]);
-    if(!S.index.count) throw new Error('empty');
+    S.index = await getJSON('data/index.json');
+    if(!S.index.categories || !S.index.categories.length) throw new Error('empty');
   }catch(e){
     $('#rows').innerHTML = '<tr><td colspan="9" class="empty">아직 수집된 데이터가 없어요. 첫 수집 후에 표시됩니다.</td></tr>';
     $('#basis').textContent = '데이터 없음'; return;
   }
   S.index.firstMs = Date.parse(S.index.first); S.index.lastMs = Date.parse(S.index.last);
+  const want = new URLSearchParams(location.search).get('cat');
+  S.cat = S.index.categories.find(c => c.key === want) || S.index.categories[0];
+  $('#cat').innerHTML = S.index.categories.map(c => `<option value="${c.key}">${esc(c.name)}</option>`).join('');
+  $('#cat').value = S.cat.key;
+  $('#cat').onchange = () => {
+    S.cat = S.index.categories.find(c => c.key === $('#cat').value);
+    history.replaceState(null, '', '?cat=' + S.cat.key);
+    S.picked = []; $('#cq').value = ''; update();
+  };
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   $('#q').oninput = render; $('#filter').onchange = render;

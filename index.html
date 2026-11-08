@@ -132,6 +132,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     </h2>
     <div class="toolbar">
       <input id="cq" type="search" placeholder="상품명 또는 브랜드로 추이 검색, 쉼표로 여러 개 (예: 베베그로우, 더블하트, 모윰)">
+      <select id="csub"><option value="">세부 카테고리 전체</option></select>
       <label class="chk"><input type="checkbox" id="sum"> 검색 결과 합쳐서 보기</label>
     </div>
     <div class="hint" id="chartHint"></div>
@@ -489,24 +490,33 @@ function drawChart(){
   if(S.chart){ S.chart.destroy(); S.chart = null; }
   const hint = $('#chartHint');
   if(!S.inRange.length){ hint.textContent = ''; return; }
-  const bs = buckets(), metric = S.metric, ts = terms($('#cq').value), q = ts.length > 0;
+  const bs = buckets(), metric = S.metric, ts = terms($('#cq').value);
+  // 추이 전용 세부 카테고리 (기간 안에 등장한 상품 기준)
+  { const sel = $('#csub'), keep = sel.value, cnt = {};
+    const seen0 = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen0.add(String(r.productId))));
+    seen0.forEach(id => { const c = product(id).category; if(c) cnt[c] = (cnt[c]||0) + 1; });
+    const cats = Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a] || a.localeCompare(b,'ko'));
+    sel.innerHTML = '<option value="">세부 카테고리 전체</option>' + cats.map(c=>`<option value="${esc(c)}">${esc(c)} (${cnt[c]})</option>`).join('');
+    sel.value = cats.includes(keep) ? keep : ''; }
+  const csub = $('#csub').value, q = ts.length > 0 || !!csub;
   const sumMode = $('#sum').checked && !!q;
   $('#sum').disabled = !q;
   let ids, datasets;
   if(q){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
     const txt = id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')).toLowerCase(); };
-    const match = [...seen].filter(id => hit(txt(id), ts));
+    const match = [...seen].filter(id => (!ts.length || hit(txt(id), ts)) && (!csub || product(id).category === csub));
     const lastVal = id => { for(let i=bs.length-1;i>=0;i--){ const r = bs[i].map.get(id); if(r) return r.sales||0; } return 0; };
     match.sort((a,b)=>lastVal(b)-lastVal(a));
     if(sumMode && metric !== 'rank'){
       // 검색어마다 합계 선 하나씩 (예: 브랜드끼리 비교)
       const sumOf = ms => bs.map(b => { let sum = 0, any = false; ms.forEach(id => { const r = b.map.get(id); if(r && r[metric]!=null){ sum += r[metric]; any = true; } }); return any ? sum : null; });
-      datasets = ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}" 합계 (${ms.length}개 상품)`, data: sumOf(ms)}; });
+      datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, data: sumOf(ms)}; })
+        : [{label:`${csub} 합계 (${match.length}개 상품)`, data: sumOf(match)}];
       hint.textContent = `검색어별 ${METRIC[metric]} 합계 (순위권 안에 있던 시점만 더함)`;
     } else {
       ids = match.slice(0,8);
-      hint.textContent = match.length ? `검색 결과 ${match.length}개 상품${match.length>8?' 중 예상매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '검색 결과가 없어요';
+      hint.textContent = match.length ? `조건에 맞는 상품 ${match.length}개${match.length>8?' 중 예상매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
     }
   } else {
     ids = S.picked;
@@ -625,7 +635,7 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   $('#q').oninput = render; $('#filter').onchange = render; $('#subcat').onchange = render;
-  $('#cq').oninput = drawChart; $('#sum').onchange = drawChart;
+  $('#cq').oninput = drawChart; $('#csub').onchange = drawChart; $('#sum').onchange = drawChart;
   $('#xlsx').onclick = downloadXlsx;
   $$('#cols col').forEach(c => c.dataset.w = c.style.width);
   setupResize();

@@ -383,7 +383,7 @@ async function update(){
   $('#rangeinfo').textContent = '';
   $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `*변동은 기간 시작(${slotLab(S.base.t)}) 대비, 표는 종료(${slotLab(S.cur.t)}) 기준` : `*변동은 직전 수집(${slotLab(S.base.t)}) 대비`;
   if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
-    S.picked = S.cur.rows.slice(0,5).map(r=>String(r.productId));
+    S.picked = S.cur.rows.slice(0,DEFPICK).map(r=>String(r.productId));
   tiles(); render(); drawChart();
 }
 
@@ -415,7 +415,7 @@ function chgHTML(r){
 }
 const deltaHTML = (d, f) => d ? `<span class="delta ${d>0?'up':'down'}">${d>0?'+':''}${f(d)}</span>` : '';
 
-const MAXPICK = 10;   // 추이에 넣을 수 있는 상품 수
+const MAXPICK = 10, DEFPICK = 5;   // 추이에 넣을 수 있는 상품 수 / 처음 자동으로 고르는 수
 // 잠깐 떴다 사라지는 알림
 function toast(msg){ let t = document.getElementById('toast'); if(!t){ t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
   t.textContent = msg; t.classList.add('show'); clearTimeout(toast._h); toast._h = setTimeout(() => t.classList.remove('show'), 1000); }
@@ -545,8 +545,8 @@ function drawChart(){
     } else {
       // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 추정매출 상위 8개
       const mine = S.fpicked;
-      ids = mine.length ? mine : match.slice(0,MAXPICK);
-      hint.textContent = mine.length ? '아래 랭킹 표에서 고른 상품 표시 · 상품을 눌러 추가하거나 뺄 수 있어요 (최대 10개)' : match.length ? `조건에 맞는 상품 ${match.length}개${match.length>MAXPICK?` 중 추정매출 상위 ${MAXPICK}개`:''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
+      ids = mine.length ? mine : match.slice(0,DEFPICK);
+      hint.textContent = mine.length ? '아래 랭킹 표에서 고른 상품 표시 · 상품을 눌러 추가하거나 뺄 수 있어요 (최대 10개)' : match.length ? `조건에 맞는 상품 ${match.length}개${match.length>DEFPICK?` 중 추정매출 상위 ${DEFPICK}개`:''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '조건에 맞는 상품이 없어요';
     }
   } else {
     ids = S.picked;

@@ -138,6 +138,7 @@ def rebuild_index(out):
     cats = []
     first = last = None
     count = 0
+    times = []
     for c in CATEGORIES:
         d = os.path.join(out, "monthly", c["key"])
         months = sorted(n[:-5] for n in os.listdir(d) if n.endswith(".json")) if os.path.isdir(d) else []
@@ -151,11 +152,13 @@ def rebuild_index(out):
         if l_snaps and (last is None or l_snaps[-1]["t"] > last):
             last = l_snaps[-1]["t"]
         if c["key"] == CATEGORIES[0]["key"]:
-            count = sum(len(read_json(os.path.join(d, m + ".json"), {})["snaps"]) for m in months)
+            # 대시보드 기간 선택지에 실제로 있는 수집 시점만 보여주기 위한 목록
+            times = [s["t"] for m in months for s in read_json(os.path.join(d, m + ".json"), {})["snaps"]]
+            count = len(times)
     pdir = os.path.join(out, "products")
     pmonths = sorted(n[:-5] for n in os.listdir(pdir) if n.endswith(".json")) if os.path.isdir(pdir) else []
     write_json(os.path.join(out, "index.json"),
-               {"categories": cats, "productMonths": pmonths, "first": first, "last": last, "count": count})
+               {"categories": cats, "productMonths": pmonths, "first": first, "last": last, "count": count, "times": times})
 
 
 def main():

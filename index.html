@@ -240,56 +240,62 @@ function firstBound(){
   }
   const p = kparts(ms); return {y:p.y, m:p.m, d:p.d, day:kms(p.y,p.m,p.d), slot:SLOTS[0], slotTo: ms + 1};
 }
+// 수집 시점이 들어가는 날짜/수집 시간 (새벽 수집은 전날 24시)
+function slotOf(ms){
+  for(const back of [0, 1]){
+    const p = kparts(ms - back*DAY), hit = slotsFor(p.y, p.m, p.d).find(x => ms >= x.from && ms < x.to);
+    if(hit) return {y:p.y, m:p.m, d:p.d, id:hit.id};
+  }
+  return null;
+}
+// 실제 데이터가 있는 날짜/수집 시간 목록
+function buildAvail(){
+  const times = S.index.times || [S.index.first, S.index.last];
+  const seen = new Set(); S.avail = [];
+  times.forEach(t => { const a = slotOf(Date.parse(t)); if(!a) return; const k = `${a.y}-${a.m}-${a.d}-${a.id}`;
+    if(!seen.has(k)){ seen.add(k); S.avail.push(a); } });
+}
+const uniq = arr => [...new Set(arr)];
+function opts(sel, vals, label, prefer){
+  const keep = prefer != null ? prefer : sel.value;
+  sel.innerHTML = vals.map(v => `<option value="${v}">${label(v)}</option>`).join('');
+  sel.value = vals.map(String).includes(String(keep)) ? keep : vals[0];
+}
 function buildPicker(el){
-  const first = S.bound, last = kparts(S.index.lastMs);
-  const years = []; for(let y=first.y; y<=Math.max(last.y, first.y); y++) years.push(y);
-  el.innerHTML = `
-    <select data-p="y">${years.map(y=>`<option value="${y}">${y}년</option>`).join('')}</select>
-    <select data-p="m"></select>
-    <select data-p="d"></select>
-    <select data-p="h"></select>`;
+  el.innerHTML = `<select data-p="y"></select><select data-p="m"></select><select data-p="d"></select><select data-p="h"></select>`;
   el.querySelectorAll('select').forEach(s => s.onchange = () => { fillDays(el); readPickers(); });
   fillDays(el);
 }
 const pv = (el, k) => +el.querySelector(`[data-p=${k}]`).value;
-// 년/월/일/시간 선택지를 다시 만든다. 조회 가능한 첫 시점 이전은 고를 수 없다.
-function fillDays(el){
-  const B = S.bound, y = pv(el,'y');
-  const ms = el.querySelector('[data-p=m]'), mMin = y === B.y ? B.m : 1;
-  const keepM = Math.max(+ms.value || mMin, mMin);
-  ms.innerHTML = Array.from({length:12-mMin+1},(_,i)=>`<option value="${mMin+i}">${mMin+i}월</option>`).join('');
-  ms.value = keepM; const m = +ms.value;
-  const ds = el.querySelector('[data-p=d]'), n = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const dMin = (y === B.y && m === B.m) ? B.d : 1, keepD = Math.min(Math.max(+ds.value || dMin, dMin), n);
-  ds.innerHTML = Array.from({length:n-dMin+1},(_,i)=>`<option value="${dMin+i}">${dMin+i}일</option>`).join('');
-  ds.value = keepD; const d = +ds.value;
-  const hs = el.querySelector('[data-p=h]'), keepH = hs.value || '10';
-  const sl = slotsFor(y, m, d).filter(x => x.to > S.index.firstMs);
-  hs.innerHTML = sl.map(x => `<option value="${x.id}">${x.label}</option>`).join('');
-  hs.value = sl.some(x => x.id === keepH) ? keepH : (sl[0] ? sl[0].id : '');
+// 년/월/일/시간 선택지를 실제 데이터가 있는 것만으로 다시 만든다.
+function fillDays(el, last){
+  const A = S.avail, q = k => el.querySelector(`[data-p=${k}]`), pick = vals => last ? vals[vals.length-1] : null;
+  const ys = uniq(A.map(a => a.y)); opts(q('y'), ys, v => v+'년', q('y').value ? null : pick(ys));
+  const y = pv(el,'y'), ms = uniq(A.filter(a => a.y === y).map(a => a.m)); opts(q('m'), ms, v => v+'월', ms.includes(+q('m').value) ? null : pick(ms));
+  const m = pv(el,'m'), ds = uniq(A.filter(a => a.y === y && a.m === m).map(a => a.d)); opts(q('d'), ds, v => v+'일', ds.includes(+q('d').value) ? null : pick(ds));
+  const d = pv(el,'d'), ids = A.filter(a => a.y === y && a.m === m && a.d === d).map(a => a.id);
+  const sl = slotsFor(y, m, d).filter(x => ids.includes(x.id)).map(x => x.id);
+  opts(q('h'), sl, id => slotsFor(y, m, d).find(x => x.id === id).label, sl.includes(q('h').value) ? null : pick(sl));
 }
 function getPicker(el){
   const y = pv(el,'y'), m = pv(el,'m'), d = pv(el,'d'), id = el.querySelector('[data-p=h]').value;
-  const all = slotsFor(y, m, d).filter(x => x.to > S.index.firstMs), sl = all.find(x => x.id === id) || all[0] || slotsFor(y, m, d)[0];
+  const all = slotsFor(y, m, d), sl = all.find(x => x.id === id) || all[0];
   return {day: kms(y, m, d), from: sl.from, to: sl.to};
 }
-function setPicker(el, ms){
-  // ms가 들어가는 날짜/수집 시간을 고른다 (테스트 구간 우선, 새벽은 전날 24시)
-  let p = kparts(ms), sl = slotsFor(p.y, p.m, p.d);
-  let hit = sl.filter(x => ms >= x.from && ms < x.to).sort((a,b) => (b.test?1:0) - (a.test?1:0))[0];
-  if(!hit){ p = kparts(ms - DAY); sl = slotsFor(p.y, p.m, p.d); hit = sl.find(x => ms >= x.from && ms < x.to); }
-  const set = (k,v) => el.querySelector(`[data-p=${k}]`).value = v;
-  set('y', p.y); fillDays(el); set('m', p.m); fillDays(el); set('d', p.d); fillDays(el);
-  set('h', hit ? hit.id : '10');
+function setPicker(el, ms, isEnd){
+  // ms가 들어가는 날짜/수집 시간을 고른다. 데이터가 없는 값이면 시작은 가장 이른, 끝은 가장 늦은 선택지로.
+  const a = slotOf(ms) || kparts(ms), q = k => el.querySelector(`[data-p=${k}]`);
+  q('y').value = a.y; fillDays(el, isEnd); q('m').value = a.m; fillDays(el, isEnd);
+  q('d').value = a.d; fillDays(el, isEnd); if(a.id) q('h').value = a.id; fillDays(el, isEnd);
 }
 function readPickers(){
   let a = getPicker($('#startPick')), b = getPicker($('#endPick'));
-  if(b.to <= a.from){ setPicker($('#endPick'), a.from); b = getPicker($('#endPick')); }
+  if(b.to <= a.from){ setPicker($('#endPick'), a.from, true); b = getPicker($('#endPick')); }
   S.startDay = a.day; S.endDay = b.day;
   S.start = a.from; S.end = b.to - 1;
   update();
 }
-function setRange(s, e){ setPicker($('#startPick'), s); setPicker($('#endPick'), e); readPickers(); }
+function setRange(s, e){ setPicker($('#startPick'), s); setPicker($('#endPick'), e, true); readPickers(); }
 
 // ---- 데이터 로딩 ----
 async function ensureMonths(s, e){
@@ -513,7 +519,7 @@ function drawChart(){
     },
     title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => v + '위'}, grid:{color:grid}};
   const yVal = {beginAtZero:true, title:{display:true,text:METRIC[metric]+(metric==='sales'?' (백만원)':''),color:tick}, ticks:{color:tick, callback:v=>metric==='sales'?won(v):fmt(v)}, grid:{color:grid}};
-  // 각 점 위에 직전 점 대비 증감 표시 (순위: 오르면 ▲, 예상매출: 백만원 단위 정수, 주문수: 개수)
+  // 각 점 위에 직전 점 대비 증감 표시 (순위: 오르면 ▲, 예상매출: 백만원 단위, 1백만 미만은 소수 첫째 자리, 주문수: 개수)
   const cs = getComputedStyle(document.documentElement);
   const upC = cs.getPropertyValue('--up').trim() || '#e5484d', downC = cs.getPropertyValue('--down').trim() || '#2f6fde';
   const deltaLabels = {id:'deltaLabels', afterDatasetsDraw(chart){
@@ -526,7 +532,7 @@ function drawChart(){
         if(prev != null){
           let d = v - prev, txt = null, good = d > 0;
           if(metric === 'rank'){ d = prev - v; good = d > 0; if(d) txt = (d > 0 ? '▲' : '▼') + Math.abs(d); }
-          else if(metric === 'sales'){ const mm = Math.round(d / 1e6); if(mm) txt = (mm > 0 ? '+' : '') + mm.toLocaleString('ko-KR') + '백만'; }
+          else if(metric === 'sales'){ const v = d / 1e6, mm = Math.abs(v) >= 1 ? Math.round(v) : Math.round(v * 10) / 10; if(mm) txt = (mm > 0 ? '+' : '') + mm.toLocaleString('ko-KR') + '백만'; }
           else if(d){ txt = (d > 0 ? '+' : '') + fmt(d); }
           if(txt){ const pt = meta.data[i]; ctx.fillStyle = good ? upC : downC; ctx.fillText(txt, pt.x, pt.y - 6); }
         }
@@ -598,6 +604,7 @@ async function init(){
   });
   S.bound = firstBound();
   $('#since').textContent = `*${S.bound.y}년 ${S.bound.m}월 ${S.bound.d}일 ${S.bound.slot.label} 데이터부터 조회할 수 있습니다.`;
+  buildAvail();
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   $('#q').oninput = render; $('#filter').onchange = render; $('#subcat').onchange = render;

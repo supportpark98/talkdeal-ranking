@@ -4,6 +4,8 @@ on:
   schedule:
     # 한국 시간 10시, 18시, 24시 (UTC 01, 09, 15시)
     - cron: "0 1,9,15 * * *"
+    # 임시 테스트: 한국 19:10 (예약 실행 확인용, 확인 후 삭제)
+    - cron: "10 10 * * *"
   workflow_dispatch: {}
 
 permissions:

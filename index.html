@@ -68,7 +68,7 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .lrow{display:flex;gap:8px;flex-wrap:wrap}
 .toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
-.chartbar{align-items:center;margin-top:-6px}
+.chartbar{align-items:center;margin-top:6px}
 .chartbar .hint{margin:0 auto 0 0}
 .tablewrap{overflow-x:auto}
 table{border-collapse:collapse;table-layout:fixed;width:max-content;min-width:100%}
@@ -560,7 +560,7 @@ function drawChart(){
     });
   });
   const hasOut = datasets.some(d => d.status && d.status.some(Boolean));
-  datasets.forEach((d,i) => Object.assign(d, {borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length], tension:0, pointRadius:3, borderWidth:2, spanGaps:false}));
+  datasets.forEach((d,i) => Object.assign(d, {borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length], tension:0, pointRadius:3, borderWidth:2, spanGaps:false, clip:false}));
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
   // 순위 축: 실제 그려진 순위 범위에 맞추고 위아래로 반 칸 여백, 눈금은 정수만
   const rs = top10 ? [1, 6] : datasets.flatMap(d => d.data).filter(v => v != null);
@@ -568,7 +568,7 @@ function drawChart(){
   // 눈금은 일정한 간격만: 범위 10 이하는 1위마다, 25 이하는 5, 60 이하는 10, 그 이상은 20 (1위는 범위 안이면 항상 표시)
   const span = rMax - rMin, step = span <= 10 ? 1 : span <= 25 ? 5 : span <= 60 ? 10 : 20;
   const yBase = Math.ceil(rMax / step) * step, OUTY = top10 ? 6 : hasOut ? yBase + step : null;
-  const yLo = Math.max(0.5, Math.floor(rMin / step) * step - 0.5), yHi = (OUTY || yBase) + 0.5;
+  const yLo = Math.max(0.5, Math.floor(rMin / step) * step - 0.5), yHi = OUTY || yBase + 0.5;   // '5위 미만'/'100위권 밖' 칸은 X축 바로 위(값 0처럼)
   if(OUTY) datasets.forEach(d => { if(d.status) d.data = d.data.map((v, i) => d.status[i] ? OUTY : v); });
   const yRank = {reverse:true, min: yLo, max: yHi,
     afterBuildTicks: ax => {

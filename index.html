@@ -132,7 +132,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       </span>
     </h2>
     <div class="toolbar">
-      <input id="cq" type="search" placeholder="상품명 또는 브랜드로 추이 검색 (예: 킨도, 기저귀)">
+      <input id="cq" type="search" placeholder="상품명 또는 브랜드로 추이 검색, 쉼표로 여러 개 (예: 베베그로우, 더블하트, 모윰)">
       <label class="chk"><input type="checkbox" id="sum"> 검색 결과 합쳐서 보기</label>
     </div>
     <div class="hint" id="chartHint"></div>
@@ -144,7 +144,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <button id="xlsx">엑셀 다운로드</button>
     </h2>
     <div class="toolbar">
-      <input id="q" type="search" placeholder="상품명, 브랜드 검색">
+      <input id="q" type="search" placeholder="상품명, 브랜드 검색 (쉼표로 여러 개)">
       <select id="subcat"><option value="">세부 카테고리 전체</option></select>
       <select id="filter">
         <option value="all">전체</option>
@@ -400,9 +400,12 @@ function chgHTML(r){
 }
 const deltaHTML = (d, f) => d ? `<span class="delta ${d>0?'up':'down'}">${d>0?'+':''}${f(d)}</span>` : '';
 
+// 쉼표로 여러 검색어 (최대 8개). 하나라도 포함하면 일치
+const terms = v => v.split(',').map(t => t.trim().toLowerCase()).filter(Boolean).slice(0, 8);
+const hit = (text, ts) => ts.some(t => text.includes(t));
 function tableRows(){
-  const q = $('#q').value.trim().toLowerCase(), f = $('#filter').value;
-  let rs = S.cur.rows.filter(r => !q || ((r.name||'')+' '+(r.brand||'')).toLowerCase().includes(q));
+  const ts = terms($('#q').value), f = $('#filter').value;
+  let rs = S.cur.rows.filter(r => !ts.length || hit(((r.name||'')+' '+(r.brand||'')).toLowerCase(), ts));
   const sc = $('#subcat').value; if(sc) rs = rs.filter(r=>r.category===sc);
   if(f==='up') rs = rs.filter(r=>r.chg>0 && r.chg!==999);
   if(f==='down') rs = rs.filter(r=>r.chg<0);
@@ -419,7 +422,7 @@ function render(){
     <tr data-id="${r.productId}" class="${S.picked.includes(String(r.productId))?'sel':''}">
       <td class="rank">${r.rank}</td>
       <td class="chg">${chgHTML(r)}</td>
-      <td class="pname"><div class="pwrap"><img class="thumb" loading="lazy" src="${esc(r.image)}" alt="">
+      <td class="pname"><div class="pwrap"><img class="thumb" loading="lazy" src="${esc(r.image)}" alt="" onerror="this.onerror=null;this.src='data:image/gif;base64,R0lGODlhAQABAAAAACw='">
         <div class="ptext">${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></div></div></td>
       <td>${esc(r.brand)}</td>
       <td class="num bold">${mdLab(r.dealStartMs)}${r.dealDays ? `<span class="delta same">행사 ${r.dealDays}일차</span>` : ''}</td>
@@ -485,20 +488,21 @@ function drawChart(){
   if(S.chart){ S.chart.destroy(); S.chart = null; }
   const hint = $('#chartHint');
   if(!S.inRange.length){ hint.textContent = ''; return; }
-  const bs = buckets(), metric = S.metric, q = $('#cq').value.trim().toLowerCase();
+  const bs = buckets(), metric = S.metric, ts = terms($('#cq').value), q = ts.length > 0;
   const sumMode = $('#sum').checked && !!q;
   $('#sum').disabled = !q;
   let ids, datasets;
   if(q){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
-    const match = [...seen].filter(id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')).toLowerCase().includes(q); });
+    const txt = id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')).toLowerCase(); };
+    const match = [...seen].filter(id => hit(txt(id), ts));
     const lastVal = id => { for(let i=bs.length-1;i>=0;i--){ const r = bs[i].map.get(id); if(r) return r.sales||0; } return 0; };
     match.sort((a,b)=>lastVal(b)-lastVal(a));
     if(sumMode && metric !== 'rank'){
-      datasets = [{label:`"${$('#cq').value.trim()}" 합계 (${match.length}개 상품)`, data: bs.map(b => {
-        let sum = 0, any = false; match.forEach(id => { const r = b.map.get(id); if(r && r[metric]!=null){ sum += r[metric]; any = true; } });
-        return any ? sum : null; })}];
-      hint.textContent = `검색 결과 ${match.length}개 상품의 ${METRIC[metric]} 합계 (순위권 안에 있던 시점만 더함)`;
+      // 검색어마다 합계 선 하나씩 (예: 브랜드끼리 비교)
+      const sumOf = ms => bs.map(b => { let sum = 0, any = false; ms.forEach(id => { const r = b.map.get(id); if(r && r[metric]!=null){ sum += r[metric]; any = true; } }); return any ? sum : null; });
+      datasets = ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}" 합계 (${ms.length}개 상품)`, data: sumOf(ms)}; });
+      hint.textContent = `검색어별 ${METRIC[metric]} 합계 (순위권 안에 있던 시점만 더함)`;
     } else {
       ids = match.slice(0,8);
       hint.textContent = match.length ? `검색 결과 ${match.length}개 상품${match.length>8?' 중 예상매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '검색 결과가 없어요';

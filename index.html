@@ -533,12 +533,14 @@ function drawChart(){
   // 순위 축: 실제 그려진 순위 범위에 맞추고 위아래로 반 칸 여백, 눈금은 정수만
   const rs = datasets.flatMap(d => d.data).filter(v => v != null);
   const rMin = rs.length ? Math.min(...rs) : 1, rMax = rs.length ? Math.max(...rs) : 10;
-  const span = rMax - rMin, step = span <= 12 ? 1 : span <= 30 ? 2 : span <= 60 ? 5 : 10;
-  const yRank = {reverse:true, min: rMin - 0.5, max: rMax + 0.5,
+  // 눈금은 일정한 간격만: 범위 10 이하는 1위마다, 25 이하는 5, 60 이하는 10, 그 이상은 20 (1위는 범위 안이면 항상 표시)
+  const span = rMax - rMin, step = span <= 10 ? 1 : span <= 25 ? 5 : span <= 60 ? 10 : 20;
+  const yLo = Math.max(0.5, Math.floor(rMin / step) * step - 0.5), yHi = Math.ceil(rMax / step) * step + 0.5;
+  const yRank = {reverse:true, min: yLo, max: yHi,
     afterBuildTicks: ax => {
-      const t = [rMin];
-      for(let v = Math.ceil((rMin + 1) / step) * step; v < rMax; v += step) if(v - t[t.length-1] >= step / 2) t.push(v);
-      if(rMax !== t[t.length-1]){ if(rMax - t[t.length-1] < step / 2 && t.length > 1) t.pop(); t.push(rMax); }
+      const t = [];
+      if(yLo < 1) t.push(1);
+      for(let v = Math.ceil(yLo / step) * step; v <= yHi; v += step) if(v > 1 && v >= yLo) t.push(v);
       ax.ticks = t.map(value => ({value}));
     },
     title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => v + '위'}, grid:{color:grid}};
@@ -571,7 +573,7 @@ function drawChart(){
     ctx.restore();
   }};
   S.chart = new Chart($('#chart'), {type:'line', data:{labels: bs.map(b=>b.label), datasets}, plugins:[deltaLabels], options:{
-    responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false}, layout:{padding:{top: metric==='rank' ? 20 : 32, left:4, right:20}},
+    responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false}, layout:{padding:{top: metric==='rank' ? 24 : 32, left:4, right:20}},
     scales:{ y: metric==='rank' ? yRank : yVal, x:{ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
       tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw==null?'순위권 밖': metric==='rank' ? c.raw+'위' : metric==='sales' ? won(c.raw)+'원' : fmt(c.raw)}`}} }

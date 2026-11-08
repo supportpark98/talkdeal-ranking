@@ -42,7 +42,8 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .seg button:last-child{border-radius:0 8px 8px 0}
 .range{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
 .range .grp{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-.range .lbl{font-size:12px;color:var(--muted);font-weight:600;margin-right:4px}
+.range .lbl,.searchbar .lbl{font-size:12px;color:var(--muted);font-weight:600;margin-right:4px}
+.searchbar .grp{display:flex;align-items:center;gap:4px}
 .range .quick{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .rangeinfo{font-size:12px;color:var(--muted);margin-top:8px}
 .rangeinfo:empty{display:none}
@@ -115,7 +116,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       </div>
     </div>
     <div class="toolbar searchbar">
-      <select id="csub"><option value="">세부 카테고리 전체</option></select>
+      <span class="grp"><span class="lbl">세부 카테고리</span><select id="csub"><option value="">전체</option></select></span>
       <input id="cq" type="search" placeholder="상품명 또는 브랜드 검색, 쉼표로 여러 개 (예: 베베그로우, 더블하트, 모윰)">
     </div>
     <div class="rangeinfo" id="rangeinfo"></div>
@@ -491,7 +492,7 @@ function drawChart(){
     const seen0 = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen0.add(String(r.productId))));
     seen0.forEach(id => { const c = product(id).category; if(c) cnt[c] = (cnt[c]||0) + 1; });
     const cats = Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a] || a.localeCompare(b,'ko'));
-    sel.innerHTML = '<option value="">세부 카테고리 전체</option>' + cats.map(c=>`<option value="${esc(c)}">${esc(c)} (${cnt[c]})</option>`).join('');
+    sel.innerHTML = '<option value="">전체</option>' + cats.map(c=>`<option value="${esc(c)}">${esc(c)} (${cnt[c]})</option>`).join('');
     sel.value = cats.includes(keep) ? keep : ''; }
   const csub = $('#csub').value, q = ts.length > 0 || !!csub;
   S.filterOn = q; if(!q) S.matchIds = new Set();

@@ -69,41 +69,6 @@ def pick(p):
     }
 
 
-def update_history(out, name, snapshot):
-    """순위 추이 그래프용 요약 파일(history.json)을 갱신한다.
-
-    times[i] 시점의 순위/주문중 수량이 각 상품의 ranks[i]/ordering[i]에 들어간다.
-    순위권 밖이면 null.
-    """
-    path = os.path.join(out, "history.json")
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            hist = json.load(f)
-    else:
-        hist = {"times": [], "files": [], "products": {}}
-    if name in hist["files"]:
-        return
-    n = len(hist["times"])
-    hist["times"].append(snapshot["collectedAt"])
-    hist["files"].append(name)
-    seen = set()
-    for p in snapshot["products"]:
-        key = str(p["productId"])
-        seen.add(key)
-        h = hist["products"].setdefault(
-            key, {"name": p["name"], "brand": p["brand"], "ranks": [None] * n, "ordering": [None] * n}
-        )
-        h["name"], h["brand"], h["url"], h["image"] = p["name"], p["brand"], p["url"], p["image"]
-        h["ranks"].append(p["rank"])
-        h["ordering"].append(p["ordering"])
-    for key, h in hist["products"].items():
-        if key not in seen:
-            h["ranks"].append(None)
-            h["ordering"].append(None)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(hist, f, ensure_ascii=False, separators=(",", ":"))
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--size", type=int, default=100)
@@ -124,15 +89,12 @@ def main():
     os.makedirs(snap_dir, exist_ok=True)
     name = now.strftime("%Y%m%d_%H%M") + ".json"
     with open(os.path.join(snap_dir, name), "w", encoding="utf-8") as f:
-        json.dump(snapshot, f, ensure_ascii=False, indent=1)
+        json.dump(snapshot, f, ensure_ascii=False, separators=(",", ":"))
 
-    # 대시보드가 읽는 스냅샷 목록
-    index_path = os.path.join(args.out, "index.json")
-    files = sorted(n for n in os.listdir(snap_dir) if n.endswith(".json"))
-    with open(index_path, "w", encoding="utf-8") as f:
-        json.dump({"updatedAt": snapshot["collectedAt"], "snapshots": files}, f, ensure_ascii=False, indent=1)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from build import rebuild
 
-    update_history(args.out, name, snapshot)
+    rebuild(args.out, [now.strftime("%Y-%m")])
     print(f"저장: {name} ({len(snapshot['products'])}개, 집계 {snapshot['aggregatedAt']})")
 
 

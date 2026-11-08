@@ -10,8 +10,11 @@
 | `scripts/collect.py` | 랭킹 API를 호출해 스냅샷을 저장 (파이썬 표준 라이브러리만 사용) |
 | `.github/workflows/collect.yml` | 예약 실행 후 `data/`에 커밋 |
 | `index.html` | 대시보드 (GitHub Pages로 공개) |
-| `data/snapshots/*.json` | 수집 시점별 랭킹 원본 |
-| `data/history.json` | 상품별 순위/주문중 추이 요약 |
+| `scripts/build.py` | 스냅샷으로 대시보드용 요약 파일 생성 |
+| `data/snapshots/*.json` | 수집 시점별 랭킹 원본 (보관용) |
+| `data/monthly/YYYY-MM.json` | 월별 순위/가격/주문중 요약 (대시보드가 기간에 맞는 달만 불러옴) |
+| `data/products.json` | 상품 정보 (이름, 브랜드, 링크, 이미지) |
+| `data/index.json` | 월 목록과 처음/마지막 수집 시각 |
 
 ## 수집 항목
 

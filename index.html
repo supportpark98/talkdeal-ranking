@@ -10,21 +10,33 @@
 :root{
   --bg:#f6f7f9; --card:#fff; --text:#1a1d23; --muted:#6b7280; --line:#e5e7eb;
   --accent:#fee500; --accent-ink:#3c1e1e; --up:#e5484d; --down:#2f6fde; --new:#12a150;
-  --sel:#fffbe0;
+  --sel:#fffbe0; --btn:#f1f2f4;
 }
 @media (prefers-color-scheme: dark){
-  :root{--bg:#111316; --card:#1a1d22; --text:#e8eaed; --muted:#9aa0a6; --line:#2c3036; --sel:#2a2715; --down:#6d9cf0}
+  :root{--bg:#111316; --card:#1a1d22; --text:#e8eaed; --muted:#9aa0a6; --line:#2c3036; --sel:#2a2715; --down:#6d9cf0; --btn:#24282e}
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:14px;line-height:1.45}
 header{background:var(--accent);color:var(--accent-ink);padding:18px 16px}
-header .wrap{display:flex;flex-wrap:wrap;align-items:end;gap:12px;justify-content:space-between}
 h1{margin:0;font-size:20px;font-weight:800}
 .sub{font-size:13px;opacity:.8;margin-top:2px}
 .wrap{max-width:1180px;margin:0 auto}
 main{padding:16px}
-select,input{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}
-header select{border-color:rgba(0,0,0,.15)}
+select,input,button{font:inherit;color:var(--text)}
+select,input{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+button{padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--btn);cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.on{background:var(--text);color:var(--card);border-color:var(--text)}
+button:disabled{opacity:.5;cursor:default}
+.seg{display:inline-flex;gap:0}
+.seg button{border-radius:0;margin-left:-1px}
+.seg button:first-child{border-radius:8px 0 0 8px;margin-left:0}
+.seg button:last-child{border-radius:0 8px 8px 0}
+.range{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
+.range .grp{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.range .lbl{font-size:12px;color:var(--muted);font-weight:600;margin-right:4px}
+.range .quick{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.rangeinfo{font-size:12px;color:var(--muted);margin-top:8px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
 .tile .k{color:var(--muted);font-size:12px}
@@ -33,13 +45,16 @@ header select{border-color:rgba(0,0,0,.15)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
 .card h2{font-size:15px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .card h2 small{font-weight:400;color:var(--muted);font-size:12px}
-.chartbox{position:relative;height:300px}
-.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-.toolbar input{flex:1;min-width:160px}
+.chartbox{position:relative;height:320px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+.toolbar input[type=search]{flex:1;min-width:160px}
+.toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
+.hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
 .tablewrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;min-width:760px}
+table{width:100%;border-collapse:collapse;min-width:900px}
 th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
 th{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
+th.sorted{color:var(--text)}
 td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 tbody tr{cursor:pointer}
 tbody tr:hover{background:var(--bg)}
@@ -48,36 +63,63 @@ tbody tr.sel{background:var(--sel)}
 .chg{font-size:12px;font-weight:700;white-space:nowrap;width:52px}
 .up{color:var(--up)} .down{color:var(--down)} .new{color:var(--new)} .same{color:var(--muted)}
 .thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--line);display:block}
-.pname{max-width:420px}
+.pname{max-width:380px}
 .pname a{color:inherit;text-decoration:none;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pname a:hover{text-decoration:underline}
 .pname .cat{font-size:12px;color:var(--muted)}
 .disc{color:var(--up);font-weight:700}
 .delta{font-size:11px;display:block}
 .empty{padding:40px;text-align:center;color:var(--muted)}
-footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px}
+footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px;line-height:1.7}
 </style>
 </head>
 <body>
 <header>
   <div class="wrap">
-    <div>
-      <h1>톡딜 출산/유아동 실시간 랭킹</h1>
-      <div class="sub" id="basis">불러오는 중…</div>
-    </div>
-    <label>수집 시점 <select id="snap"></select></label>
+    <h1>톡딜 출산/유아동 실시간 랭킹</h1>
+    <div class="sub" id="basis">불러오는 중…</div>
   </div>
 </header>
 <main class="wrap">
+  <section class="card">
+    <div class="range">
+      <div class="grp"><span class="lbl">시작</span><span id="startPick"></span></div>
+      <div class="grp"><span class="lbl">종료</span><span id="endPick"></span></div>
+      <div class="quick">
+        <button data-q="today">오늘</button>
+        <button data-q="7">최근 7일</button>
+        <button data-q="30">최근 30일</button>
+        <button data-q="all">전체</button>
+      </div>
+    </div>
+    <div class="rangeinfo" id="rangeinfo"></div>
+  </section>
+
   <section class="tiles" id="tiles"></section>
 
   <section class="card">
-    <h2>순위 추이 <small>표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)</small></h2>
+    <h2><span>추이</span>
+      <span style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="seg" id="metric">
+          <button data-m="rank" class="on">순위</button><button data-m="sales">예상매출</button><button data-m="ordering">주문중</button>
+        </span>
+        <span class="seg" id="gran">
+          <button data-g="hour">시간</button><button data-g="day">일</button><button data-g="week">주</button>
+        </span>
+      </span>
+    </h2>
+    <div class="toolbar">
+      <input id="cq" type="search" placeholder="상품명 또는 브랜드로 추이 검색 (예: 킨도, 기저귀)">
+      <label class="chk"><input type="checkbox" id="sum"> 검색 결과 합계로 보기</label>
+    </div>
+    <div class="hint" id="chartHint"></div>
     <div class="chartbox"><canvas id="chart"></canvas></div>
   </section>
 
   <section class="card">
-    <h2>랭킹 <small id="cmp"></small></h2>
+    <h2><span>랭킹 <small id="cmp"></small></span>
+      <button id="xlsx">엑셀 다운로드</button>
+    </h2>
     <div class="toolbar">
       <input id="q" type="search" placeholder="상품명, 브랜드 검색">
       <select id="filter">
@@ -93,134 +135,315 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
           <th data-k="rank" class="num">순위</th><th data-k="chg">변동</th><th></th>
           <th data-k="name">상품명</th><th data-k="brand">브랜드</th>
           <th data-k="price" class="num">톡딜가</th><th data-k="discountRate" class="num">할인율</th>
-          <th data-k="ordering" class="num">주문중</th>
+          <th data-k="ordering" class="num">주문중</th><th data-k="sales" class="num">예상매출</th>
         </tr></thead>
-        <tbody id="rows"><tr><td colspan="8" class="empty">불러오는 중…</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="9" class="empty">불러오는 중…</td></tr></tbody>
       </table>
     </div>
   </section>
 </main>
-<footer>매일 10시, 18시, 24시에 자동 수집 · 출처: 카카오 톡딜 랭킹</footer>
+<footer>
+  매일 10시, 18시, 24시에 자동 수집 · 출처: 카카오 톡딜 랭킹<br>
+  예상매출 = 톡딜가 × 주문중 수량 (옵션별 가격 차이는 반영되지 않은 추정치)<br>
+  일/주 단위는 해당 기간의 마지막 수집값 기준이며, 24시(자정) 수집분은 전날로 셉니다.
+</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-const fmt = n => n == null ? '-' : n.toLocaleString('ko-KR');
+const $$ = s => [...document.querySelectorAll(s)];
+const fmt = n => n == null ? '-' : Math.round(n).toLocaleString('ko-KR');
+const won = n => {
+  if(n == null) return '-';
+  if(Math.abs(n) >= 1e8) return (n/1e8).toFixed(n>=1e9?0:1).replace(/\.0$/,'') + '억';
+  if(Math.abs(n) >= 1e4) return Math.round(n/1e4).toLocaleString('ko-KR') + '만';
+  return fmt(n);
+};
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const COLORS = ['#e5484d','#2f6fde','#12a150','#f5a524','#8e4ec6','#0ea5a4','#d6409f','#7c8a99'];
-const state = {index:null, history:null, cur:null, prev:null, sort:{k:'rank',dir:1}, picked:[], chart:null};
+const DAY = 864e5, KST = 9*36e5;
+const METRIC = {rank:'순위', sales:'예상매출', ordering:'주문중'};
 
-function label(file){ // 20261108_1000.json -> 11/08 10:00
-  const m = file.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})/);
-  return m ? `${+m[2]}/${+m[3]} ${m[4]}:${m[5]}` : file;
-}
-function aggLabel(s){ // 20261108160000
-  if(!s) return '';
-  return `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)} ${s.slice(8,10)}시 기준`;
-}
+const S = {index:null, products:{}, months:{}, snaps:[], inRange:[], cur:null, base:null,
+  start:0, end:0, metric:'rank', gran:'hour', sort:{k:'rank',dir:1}, picked:[], chart:null};
+
+// ---- 시간 도우미 (모든 표시는 한국 시간) ----
+const kparts = ms => { const d = new Date(ms + KST); return {y:d.getUTCFullYear(), m:d.getUTCMonth()+1, d:d.getUTCDate(), h:d.getUTCHours(), dow:d.getUTCDay()}; };
+const kms = (y,m,d,h=0) => Date.UTC(y, m-1, d, h) - KST;
+const pad = n => String(n).padStart(2,'0');
+const lab = ms => { const p = kparts(ms); return `${p.m}/${p.d} ${pad(p.h)}시`; };
+const dayKey = ms => { const p = kparts(ms - 2*36e5); return kms(p.y,p.m,p.d); };   // 자정~2시 수집분은 전날
+const weekKey = ms => { const k = dayKey(ms), p = kparts(k); return k - ((p.dow+6)%7)*DAY; }; // 월요일 시작
+
 async function getJSON(p){ const r = await fetch(p, {cache:'no-cache'}); if(!r.ok) throw new Error(p+' '+r.status); return r.json(); }
 
-async function init(){
-  try{
-    [state.index, state.history] = await Promise.all([getJSON('data/index.json'), getJSON('data/history.json')]);
-  }catch(e){
-    $('#rows').innerHTML = '<tr><td colspan="8" class="empty">아직 수집된 데이터가 없어요. 첫 수집 후에 표시됩니다.</td></tr>';
-    $('#basis').textContent = '데이터 없음';
-    return;
-  }
-  const files = state.index.snapshots;
-  $('#snap').innerHTML = files.map((f,i)=>`<option value="${i}">${label(f)}</option>`).reverse().join('');
-  $('#snap').value = files.length-1;
-  $('#snap').onchange = () => load(+$('#snap').value);
-  $('#q').oninput = render; $('#filter').onchange = render;
-  document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
-    const k = th.dataset.k; state.sort = {k, dir: state.sort.k===k ? -state.sort.dir : (k==='rank'||k==='name'||k==='brand'?1:-1)}; render();
-  });
-  await load(files.length-1, true);
+// ---- 날짜 선택 (년/월/일/시 드롭다운) ----
+function buildPicker(el, which){
+  const first = kparts(S.index.firstMs), last = kparts(S.index.lastMs);
+  const years = []; for(let y=first.y; y<=last.y; y++) years.push(y);
+  el.innerHTML = `
+    <select data-p="y">${years.map(y=>`<option value="${y}">${y}년</option>`).join('')}</select>
+    <select data-p="m">${Array.from({length:12},(_,i)=>`<option value="${i+1}">${i+1}월</option>`).join('')}</select>
+    <select data-p="d"></select>
+    <select data-p="h">${Array.from({length:24},(_,i)=>`<option value="${i}">${pad(i)}시</option>`).join('')}</select>`;
+  el.querySelectorAll('select').forEach(s => s.onchange = () => { fillDays(el); readPickers(); });
+}
+function fillDays(el){
+  const y = +el.querySelector('[data-p=y]').value, m = +el.querySelector('[data-p=m]').value;
+  const ds = el.querySelector('[data-p=d]'), keep = +ds.value || 1, n = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  ds.innerHTML = Array.from({length:n},(_,i)=>`<option value="${i+1}">${i+1}일</option>`).join('');
+  ds.value = Math.min(keep, n);
+}
+function setPicker(el, ms){
+  const p = kparts(ms), set = (k,v) => el.querySelector(`[data-p=${k}]`).value = v;
+  set('y', p.y); set('m', p.m); fillDays(el); set('d', p.d); set('h', p.h);
+}
+function getPicker(el){
+  const g = k => +el.querySelector(`[data-p=${k}]`).value;
+  return kms(g('y'), g('m'), g('d'), g('h'));
+}
+function readPickers(){
+  let s = getPicker($('#startPick')), e = getPicker($('#endPick')) + 36e5 - 1;  // 종료 시각은 그 시간 끝까지 포함
+  if(s > e){ [s, e] = [e - 36e5 + 1, s + 36e5 - 1]; setPicker($('#startPick'), s); setPicker($('#endPick'), e); }
+  setRange(s, e);
+}
+function setRange(s, e, syncPickers){
+  S.start = s; S.end = e;
+  if(syncPickers){ setPicker($('#startPick'), s); setPicker($('#endPick'), e); }
+  update();
 }
 
-async function load(i, first){
-  const files = state.index.snapshots;
-  state.cur = await getJSON('data/snapshots/'+files[i]);
-  state.prev = i>0 ? await getJSON('data/snapshots/'+files[i-1]) : null;
-  const prevMap = new Map((state.prev?.products||[]).map(p=>[p.productId,p]));
-  state.cur.products.forEach(p => {
-    const q = prevMap.get(p.productId);
-    p.prevRank = q ? q.rank : null;
-    p.chg = !state.prev ? 0 : q ? q.rank - p.rank : 999; // 999 = 신규
-    p.dOrdering = q && p.ordering!=null && q.ordering!=null ? p.ordering - q.ordering : null;
+// ---- 데이터 로딩 ----
+async function ensureMonths(s, e){
+  const need = [];
+  const ps = kparts(s - 31*DAY), pe = kparts(e);   // 시작 이전 비교용으로 한 달 앞까지
+  for(let y=ps.y, m=ps.m; y<pe.y || (y===pe.y && m<=pe.m); m===12 ? (y++, m=1) : m++){
+    const key = `${y}-${pad(m)}`;
+    if(S.index.months.includes(key) && !S.months[key]) need.push(key);
+  }
+  await Promise.all(need.map(async k => {
+    const j = await getJSON(`data/monthly/${k}.json`);
+    S.months[k] = j.snaps.map(sn => ({t: Date.parse(sn.t), agg: sn.agg, rows: sn.rows.map(r => {
+      const o = {}; j.cols.forEach((c,i)=>o[c]=r[i]);
+      o.sales = o.price!=null && o.ordering!=null ? o.price*o.ordering : null;
+      return o;
+    })}));
+  }));
+  S.snaps = Object.values(S.months).flat().sort((a,b)=>a.t-b.t);
+}
+
+function product(id){ return S.products[id] || {}; }
+
+async function update(){
+  await ensureMonths(S.start, S.end);
+  S.inRange = S.snaps.filter(s => s.t >= S.start && s.t <= S.end);
+  const calDay = ms => { const p = kparts(ms); return kms(p.y,p.m,p.d); };
+  const multiDay = calDay(S.start) !== calDay(S.end);
+  $('#gran').style.display = multiDay ? '' : 'none';
+  if(!multiDay) S.gran = 'hour';
+  else if(S._wasSingle !== false && S.gran === 'hour') S.gran = 'day';
+  S._wasSingle = !multiDay;
+  $$('#gran button').forEach(b => b.classList.toggle('on', b.dataset.g === S.gran));
+
+  if(!S.inRange.length){
+    $('#rangeinfo').textContent = '선택한 기간에 수집된 데이터가 없어요.';
+    $('#rows').innerHTML = '<tr><td colspan="9" class="empty">선택한 기간에 수집된 데이터가 없어요</td></tr>';
+    $('#tiles').innerHTML = ''; $('#cmp').textContent = ''; S.cur = null; drawChart(); return;
+  }
+  S.cur = S.inRange[S.inRange.length-1];
+  S.base = S.inRange.length > 1 ? S.inRange[0] : [...S.snaps].reverse().find(s => s.t < S.cur.t) || null;
+  const baseMap = new Map((S.base?.rows||[]).map(r=>[r.productId, r]));
+  S.cur.rows.forEach(r => {
+    const p = product(r.productId), b = baseMap.get(r.productId);
+    Object.assign(r, {name:p.name, brand:p.brand, category:p.category, url:p.url, image:p.image});
+    r.baseRank = b ? b.rank : null;
+    r.chg = !S.base ? 0 : b ? b.rank - r.rank : 999;  // 999 = 신규
+    r.dOrdering = b && r.ordering!=null && b.ordering!=null ? r.ordering - b.ordering : null;
+    r.dSales = b && r.sales!=null && b.sales!=null ? r.sales - b.sales : null;
   });
-  $('#basis').textContent = `${aggLabel(state.cur.aggregatedAt)} · 상위 ${state.cur.products.length}개`;
-  $('#cmp').textContent = state.prev ? `변동은 직전 수집(${label(files[i-1])}) 대비` : '비교할 이전 수집이 없어요';
-  if(first) state.picked = state.cur.products.slice(0,5).map(p=>String(p.productId));
+  $('#basis').textContent = `마지막 수집 ${lab(S.index.lastMs)} · 전체 ${S.index.count}회 수집`;
+  $('#rangeinfo').textContent = `${lab(S.inRange[0].t)} ~ ${lab(S.cur.t)} · 이 기간 수집 ${S.inRange.length}회`;
+  $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `변동은 기간 시작(${lab(S.base.t)}) 대비, 표는 ${lab(S.cur.t)} 기준` : `변동은 직전 수집(${lab(S.base.t)}) 대비`;
+  if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
+    S.picked = S.cur.rows.slice(0,5).map(r=>String(r.productId));
   tiles(); render(); drawChart();
 }
 
+// ---- 요약 카드 ----
 function tiles(){
-  const ps = state.cur.products, top = ps[0];
-  const news = state.prev ? ps.filter(p=>p.chg===999) : [];
-  const risers = ps.filter(p=>p.chg>0 && p.chg!==999).sort((a,b)=>b.chg-a.chg);
-  const hot = ps.filter(p=>p.dOrdering!=null).sort((a,b)=>b.dOrdering-a.dOrdering)[0];
+  const rs = S.cur.rows, top = rs[0];
+  const news = S.base ? rs.filter(r=>r.chg===999) : [];
+  const risers = rs.filter(r=>r.chg>0 && r.chg!==999).sort((a,b)=>b.chg-a.chg);
+  const hot = rs.filter(r=>r.dSales!=null).sort((a,b)=>b.dSales-a.dSales)[0];
+  const total = rs.reduce((a,r)=>a+(r.sales||0),0);
   const t = (k,v,d) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
   $('#tiles').innerHTML =
-    t('현재 1위', esc(top.brand), esc(top.name)) +
-    t('가장 많이 오른 상품', risers[0] ? `<span class="up">▲${risers[0].chg}</span> ${esc(risers[0].brand)}` : '-', risers[0] ? `${risers[0].prevRank}위 → ${risers[0].rank}위` : '직전 대비 상승 없음') +
-    t('신규 진입', state.prev ? `${news.length}개` : '-', news.slice(0,3).map(p=>esc(p.brand)).join(', ') || ' ') +
-    t('주문중 가장 많이 늘어난 상품', hot && hot.dOrdering>0 ? `+${fmt(hot.dOrdering)} ${esc(hot.brand)}` : '-', hot ? esc(hot.name) : ' ');
+    t('1위', esc(top.brand), esc(top.name)) +
+    t('가장 많이 오른 상품', risers[0] ? `<span class="up">▲${risers[0].chg}</span> ${esc(risers[0].brand)}` : '-', risers[0] ? `${risers[0].baseRank}위 → ${risers[0].rank}위` : '상승한 상품 없음') +
+    t('신규 진입', S.base ? `${news.length}개` : '-', news.slice(0,3).map(r=>esc(r.brand)).join(', ') || ' ') +
+    t('예상매출 가장 많이 늘어난 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 예상매출 합계 ${won(total)}원`);
 }
 
-function chgHTML(p){
-  if(!state.prev) return '<span class="same">-</span>';
-  if(p.chg===999) return '<span class="new">NEW</span>';
-  if(p.chg>0) return `<span class="up">▲${p.chg}</span>`;
-  if(p.chg<0) return `<span class="down">▼${-p.chg}</span>`;
+// ---- 랭킹 표 ----
+function chgHTML(r){
+  if(!S.base) return '<span class="same">-</span>';
+  if(r.chg===999) return '<span class="new">NEW</span>';
+  if(r.chg>0) return `<span class="up">▲${r.chg}</span>`;
+  if(r.chg<0) return `<span class="down">▼${-r.chg}</span>`;
   return '<span class="same">–</span>';
 }
+const deltaHTML = (d, f) => d ? `<span class="delta ${d>0?'up':'down'}">${d>0?'+':''}${f(d)}</span>` : '';
 
-function render(){
+function tableRows(){
   const q = $('#q').value.trim().toLowerCase(), f = $('#filter').value;
-  let ps = state.cur.products.filter(p => !q || (p.name+' '+p.brand).toLowerCase().includes(q));
-  if(f==='up') ps = ps.filter(p=>p.chg>0 && p.chg!==999);
-  if(f==='down') ps = ps.filter(p=>p.chg<0);
-  if(f==='new') ps = ps.filter(p=>p.chg===999);
-  const {k,dir} = state.sort;
-  ps = [...ps].sort((a,b)=>{ const x=a[k], y=b[k]; if(x==null) return 1; if(y==null) return -1; return (typeof x==='string' ? x.localeCompare(y,'ko') : x-y)*dir; });
-  $('#rows').innerHTML = ps.length ? ps.map(p => `
-    <tr data-id="${p.productId}" class="${state.picked.includes(String(p.productId))?'sel':''}">
-      <td class="rank">${p.rank}</td>
-      <td class="chg">${chgHTML(p)}</td>
-      <td><img class="thumb" loading="lazy" src="${esc(p.image)}" alt=""></td>
-      <td class="pname"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a><div class="cat">${esc(p.category)}</div></td>
-      <td>${esc(p.brand)}</td>
-      <td class="num">${fmt(p.price)}원</td>
-      <td class="num disc">${p.discountRate ? Math.round(p.discountRate)+'%' : '-'}</td>
-      <td class="num">${fmt(p.ordering)}${p.dOrdering ? `<span class="delta ${p.dOrdering>0?'up':'down'}">${p.dOrdering>0?'+':''}${fmt(p.dOrdering)}</span>`:''}</td>
-    </tr>`).join('') : '<tr><td colspan="8" class="empty">조건에 맞는 상품이 없어요</td></tr>';
-  document.querySelectorAll('#rows tr[data-id]').forEach(tr => tr.onclick = e => {
+  let rs = S.cur.rows.filter(r => !q || ((r.name||'')+' '+(r.brand||'')).toLowerCase().includes(q));
+  if(f==='up') rs = rs.filter(r=>r.chg>0 && r.chg!==999);
+  if(f==='down') rs = rs.filter(r=>r.chg<0);
+  if(f==='new') rs = rs.filter(r=>r.chg===999);
+  const {k,dir} = S.sort;
+  return [...rs].sort((a,b)=>{ const x=a[k], y=b[k]; if(x==null) return 1; if(y==null) return -1; return (typeof x==='string' ? x.localeCompare(y,'ko') : x-y)*dir; });
+}
+function render(){
+  if(!S.cur) return;
+  $$('th[data-k]').forEach(th => th.classList.toggle('sorted', th.dataset.k===S.sort.k));
+  const rs = tableRows();
+  $('#rows').innerHTML = rs.length ? rs.map(r => `
+    <tr data-id="${r.productId}" class="${S.picked.includes(String(r.productId))?'sel':''}">
+      <td class="rank">${r.rank}</td>
+      <td class="chg">${chgHTML(r)}</td>
+      <td><img class="thumb" loading="lazy" src="${esc(r.image)}" alt=""></td>
+      <td class="pname"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></td>
+      <td>${esc(r.brand)}</td>
+      <td class="num">${fmt(r.price)}원</td>
+      <td class="num disc">${r.discountRate ? Math.round(r.discountRate)+'%' : '-'}</td>
+      <td class="num">${fmt(r.ordering)}${deltaHTML(r.dOrdering, fmt)}</td>
+      <td class="num">${won(r.sales)}원${deltaHTML(r.dSales, won)}</td>
+    </tr>`).join('') : '<tr><td colspan="9" class="empty">조건에 맞는 상품이 없어요</td></tr>';
+  $$('#rows tr[data-id]').forEach(tr => tr.onclick = e => {
     if(e.target.closest('a')) return;
-    const id = tr.dataset.id, i = state.picked.indexOf(id);
-    if(i>=0) state.picked.splice(i,1); else { if(state.picked.length>=8) state.picked.shift(); state.picked.push(id); }
+    const id = tr.dataset.id, i = S.picked.indexOf(id);
+    if(i>=0) S.picked.splice(i,1); else { if(S.picked.length>=8) S.picked.shift(); S.picked.push(id); }
+    if($('#cq').value){ $('#cq').value = ''; }
     render(); drawChart();
   });
 }
 
+// ---- 추이 그래프 ----
+function buckets(){
+  // 선택 단위별로 묶고, 각 묶음의 마지막 수집값을 쓴다
+  const keyOf = S.gran==='day' ? dayKey : S.gran==='week' ? weekKey : (t => t);
+  const m = new Map();
+  S.inRange.forEach(s => m.set(keyOf(s.t), s));
+  return [...m.entries()].map(([k, s]) => {
+    const p = kparts(k);
+    const label = S.gran==='day' ? `${p.m}/${p.d}` : S.gran==='week' ? `${p.m}/${p.d}주` : lab(s.t);
+    return {label, snap: s, map: new Map(s.rows.map(r=>[String(r.productId), r]))};
+  });
+}
 function drawChart(){
-  const h = state.history, labels = h.files.map(label);
-  const datasets = state.picked.filter(id=>h.products[id]).map((id,i)=>({
-    label: `${h.products[id].brand} · ${h.products[id].name.slice(0,18)}`,
-    data: h.products[id].ranks, borderColor: COLORS[i%COLORS.length], backgroundColor: COLORS[i%COLORS.length],
-    spanGaps:false, tension:0, pointRadius:3, borderWidth:2
+  if(typeof Chart === 'undefined') return;
+  if(S.chart){ S.chart.destroy(); S.chart = null; }
+  const hint = $('#chartHint');
+  if(!S.inRange.length){ hint.textContent = ''; return; }
+  const bs = buckets(), metric = S.metric, q = $('#cq').value.trim().toLowerCase();
+  const sumMode = $('#sum').checked && !!q;
+  $('#sum').disabled = !q;
+  let ids, datasets;
+  if(q){
+    const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
+    const match = [...seen].filter(id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')).toLowerCase().includes(q); });
+    const lastVal = id => { for(let i=bs.length-1;i>=0;i--){ const r = bs[i].map.get(id); if(r) return r.sales||0; } return 0; };
+    match.sort((a,b)=>lastVal(b)-lastVal(a));
+    if(sumMode && metric !== 'rank'){
+      datasets = [{label:`"${$('#cq').value.trim()}" 합계 (${match.length}개 상품)`, data: bs.map(b => {
+        let sum = 0, any = false; match.forEach(id => { const r = b.map.get(id); if(r && r[metric]!=null){ sum += r[metric]; any = true; } });
+        return any ? sum : null; })}];
+      hint.textContent = `검색 결과 ${match.length}개 상품의 ${METRIC[metric]} 합계 (순위권 안에 있던 시점만 더함)`;
+    } else {
+      ids = match.slice(0,8);
+      hint.textContent = match.length ? `검색 결과 ${match.length}개 상품${match.length>8?' 중 예상매출 상위 8개':''} 표시` + (sumMode && metric==='rank' ? ' · 순위는 합계로 볼 수 없어요' : '') : '검색 결과가 없어요';
+    }
+  } else {
+    ids = S.picked;
+    hint.textContent = '표에서 상품을 눌러 추가하거나 뺄 수 있어요 (최대 8개)';
+  }
+  if(!datasets) datasets = ids.map(id => ({
+    label: `${product(id).brand||''} · ${(product(id).name||'').slice(0,20)}`,
+    data: bs.map(b => { const r = b.map.get(id); return r ? r[metric] : null; })
   }));
+  datasets.forEach((d,i) => Object.assign(d, {borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length], tension:0, pointRadius:3, borderWidth:2, spanGaps:false}));
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
-  const cfg = {type:'line', data:{labels, datasets}, options:{
+  const yRank = {reverse:true, min:1, suggestedMax:20, title:{display:true,text:'순위',color:tick}, ticks:{precision:0,color:tick}, grid:{color:grid}};
+  const yVal = {beginAtZero:true, title:{display:true,text:METRIC[metric]+(metric==='sales'?' (원)':''),color:tick}, ticks:{color:tick, callback:v=>metric==='sales'?won(v):fmt(v)}, grid:{color:grid}};
+  S.chart = new Chart($('#chart'), {type:'line', data:{labels: bs.map(b=>b.label), datasets}, options:{
     responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false},
-    scales:{ y:{reverse:true, min:1, suggestedMax:20, title:{display:true,text:'순위',color:tick}, ticks:{precision:0,color:tick}, grid:{color:grid}},
-             x:{ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
+    scales:{ y: metric==='rank' ? yRank : yVal, x:{ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
-              tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw==null?'순위권 밖':c.raw+'위'}`}} }
-  }};
-  if(state.chart) state.chart.destroy();
-  state.chart = new Chart($('#chart'), cfg);
+      tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw==null?'순위권 밖': metric==='rank' ? c.raw+'위' : metric==='sales' ? won(c.raw)+'원' : fmt(c.raw)}`}} }
+  }});
+}
+
+// ---- 엑셀 다운로드 ----
+function loadScript(src){ return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
+async function downloadXlsx(){
+  if(!S.cur) return;
+  const btn = $('#xlsx'); btn.disabled = true; btn.textContent = '만드는 중…';
+  try{
+    if(typeof XLSX === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+    const chgText = r => !S.base ? '' : r.chg===999 ? 'NEW' : r.chg;
+    const sheet1 = tableRows().map(r => ({'순위':r.rank, '변동':chgText(r), '상품명':r.name, '브랜드':r.brand, '카테고리':r.category,
+      '톡딜가':r.price, '할인율(%)':r.discountRate, '주문중':r.ordering, '주문중 증감':r.dOrdering, '예상매출':r.sales, '예상매출 증감':r.dSales, '상품ID':r.productId, '링크':r.url}));
+    const sheet2 = [];
+    S.inRange.forEach(s => s.rows.forEach(r => { const p = product(r.productId); sheet2.push({'수집시각':lab(s.t), '순위':r.rank, '상품명':p.name, '브랜드':p.brand, '카테고리':p.category,
+      '톡딜가':r.price, '할인율(%)':r.discountRate, '주문중':r.ordering, '예상매출':r.sales, '상품ID':r.productId, '링크':p.url}); }));
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.json_to_sheet(sheet1), ws2 = XLSX.utils.json_to_sheet(sheet2);
+    ws1['!cols'] = [6,6,50,14,14,10,8,9,10,12,12,11,45].map(w=>({wch:w}));
+    ws2['!cols'] = [12,6,50,14,14,10,8,9,12,11,45].map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb, ws1, '랭킹(종료시점)');
+    XLSX.utils.book_append_sheet(wb, ws2, '기간 전체 기록');
+    const f = ms => { const p = kparts(ms); return `${p.y}${pad(p.m)}${pad(p.d)}-${pad(p.h)}`; };
+    XLSX.writeFile(wb, `톡딜랭킹_${f(S.inRange[0].t)}_${f(S.cur.t)}.xlsx`);
+  }catch(e){ alert('엑셀 파일을 만들지 못했어요: ' + e.message); }
+  btn.disabled = false; btn.textContent = '엑셀 다운로드';
+}
+
+// ---- 시작 ----
+async function init(){
+  try{
+    [S.index, S.products] = await Promise.all([getJSON('data/index.json'), getJSON('data/products.json')]);
+    if(!S.index.count) throw new Error('empty');
+  }catch(e){
+    $('#rows').innerHTML = '<tr><td colspan="9" class="empty">아직 수집된 데이터가 없어요. 첫 수집 후에 표시됩니다.</td></tr>';
+    $('#basis').textContent = '데이터 없음'; return;
+  }
+  S.index.firstMs = Date.parse(S.index.first); S.index.lastMs = Date.parse(S.index.last);
+  buildPicker($('#startPick')); buildPicker($('#endPick'));
+
+  $('#q').oninput = render; $('#filter').onchange = render;
+  $('#cq').oninput = drawChart; $('#sum').onchange = drawChart;
+  $('#xlsx').onclick = downloadXlsx;
+  $$('th[data-k]').forEach(th => th.onclick = () => {
+    const k = th.dataset.k; S.sort = {k, dir: S.sort.k===k ? -S.sort.dir : (['rank','name','brand'].includes(k)?1:-1)}; render();
+  });
+  $$('#metric button').forEach(b => b.onclick = () => { S.metric = b.dataset.m; $$('#metric button').forEach(x=>x.classList.toggle('on', x===b)); drawChart(); });
+  $$('#gran button').forEach(b => b.onclick = () => { S.gran = b.dataset.g; $$('#gran button').forEach(x=>x.classList.toggle('on', x===b)); drawChart(); });
+
+  const last = S.index.lastMs, endHour = (() => { const p = kparts(last); return kms(p.y,p.m,p.d,p.h) + 36e5 - 1; })();
+  const firstHour = (() => { const p = kparts(S.index.firstMs); return kms(p.y,p.m,p.d,p.h); })();
+  const todayAt10 = ms => { const p = kparts(ms); return kms(p.y,p.m,p.d,10); };
+  $$('[data-q]').forEach(b => b.onclick = () => {
+    const q = b.dataset.q;
+    const s = q==='today' ? todayAt10(last) : q==='all' ? S.index.firstMs : todayAt10(last) - (+q-1)*DAY;
+    setRange(Math.min(Math.max(s, firstHour), last), endHour, true);
+  });
+
+  // 기본값: 오늘 10시 ~ 가장 최근 수집. 오늘 10시 이전이면 전날 10시부터.
+  let start = todayAt10(Date.now());
+  if(start > last) start = todayAt10(last);
+  if(start > last) start -= DAY;
+  start = Math.max(start, firstHour);
+  setRange(start, endHour, true);
 }
 init();
 </script>

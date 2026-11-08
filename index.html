@@ -59,7 +59,11 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .chartbox{position:relative;height:320px}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
 .toolbar input[type=search]{flex:1;min-width:160px}
-.searchbar{margin-top:12px;margin-bottom:0}
+.searchbar{margin-top:12px;margin-bottom:0;align-items:flex-start}
+.searchbar .grp{min-height:34px}
+.qwrap{flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px}
+.qwrap input{width:100%;box-sizing:border-box}
+.qnote{font-size:12px;color:var(--muted)}
 .toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
 .chartbar{align-items:center;margin-top:-6px}
@@ -121,9 +125,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     <div class="toolbar searchbar">
       <span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
       <span class="grp"><span class="lbl">세부 카테고리</span><select id="csub"><option value="">전체</option></select></span>
-      <input id="cq" type="search" placeholder="브랜드 또는 키워드 검색">
+      <span class="qwrap"><input id="cq" type="search" placeholder="브랜드 또는 키워드 검색"><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
-    <div class="rangeinfo">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</div>
     <div class="rangeinfo" id="rangeinfo"></div>
     <div class="rangeinfo">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</div>
   </section>

@@ -222,7 +222,14 @@ const SLOTS = [
   {id:'24', label:'24시', from:22, to:30},   // 24시 수집 = 다음날 0시 무렵
 ];
 // 임시 테스트 수집 시간이 필요할 때 {id, label, date:"YYYY-MM-DD", from:"HH:MM", to:"HH:MM"} 형식으로 추가. 해당 날짜에만 선택지로 나온다.
-const TEST_SLOTS = [];
+const TEST_SLOTS = [
+  {id:'t1', label:'테스트 17:47', date:'2026-11-08', from:'17:40', to:'17:55'},
+  {id:'t2', label:'테스트 19:50', date:'2026-11-08', from:'19:45', to:'19:55'},
+  {id:'t3', label:'테스트 20:50', date:'2026-11-08', from:'20:45', to:'20:55'},
+  {id:'t4', label:'테스트 21:50', date:'2026-11-08', from:'21:45', to:'21:55'},
+  {id:'t5', label:'테스트 22:50', date:'2026-11-08', from:'22:45', to:'22:55'},
+  {id:'t6', label:'테스트 23:51', date:'2026-11-08', from:'23:45', to:'23:59'},
+];
 const hm = v => { const [h, m] = v.split(':'); return (+h)*36e5 + (+m)*6e4; };
 function slotsFor(y, m, d){
   const key = `${y}-${pad(m)}-${pad(d)}`, day = kms(y, m, d);
@@ -243,7 +250,7 @@ function firstBound(){
 // 수집 시점이 들어가는 날짜/수집 시간 (새벽 수집은 전날 24시)
 function slotOf(ms){
   for(const back of [0, 1]){
-    const p = kparts(ms - back*DAY), hit = slotsFor(p.y, p.m, p.d).find(x => ms >= x.from && ms < x.to);
+    const p = kparts(ms - back*DAY), hits = slotsFor(p.y, p.m, p.d).filter(x => ms >= x.from && ms < x.to), hit = hits.find(x => x.test) || hits[0];
     if(hit) return {y:p.y, m:p.m, d:p.d, id:hit.id};
   }
   return null;

@@ -64,6 +64,8 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .qwrap{flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px}
 .qwrap input{width:100%;box-sizing:border-box}
 .qnote{font-size:12px;color:var(--muted)}
+.lcol{display:flex;flex-direction:column;gap:4px}
+.lrow{display:flex;gap:8px;flex-wrap:wrap}
 .toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
 .chartbar{align-items:center;margin-top:-6px}
@@ -123,12 +125,12 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       </div>
     </div>
     <div class="toolbar searchbar">
-      <span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
-      <span class="grp"><span class="lbl">세부 카테고리</span><select id="csub"><option value="">전체</option></select></span>
+      <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
+      <span class="grp"><span class="lbl">세부 카테고리</span><select id="csub"><option value="">전체</option></select></span></span>
+        <span class="qnote">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</span></span>
       <span class="qwrap"><input id="cq" type="search" placeholder="브랜드 또는 키워드 검색"><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
     <div class="rangeinfo" id="rangeinfo"></div>
-    <div class="rangeinfo">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</div>
   </section>
 
   <section class="tiles" id="tiles"></section>
@@ -140,7 +142,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
           <button data-m="rank" class="on">순위</button><button data-m="sales">추정매출</button><button data-m="ordering">주문수</button>
         </span>
         <span class="seg" id="gran">
-          <button data-g="hour">시간</button><button data-g="day">일</button><button data-g="week">주</button>
+          <button data-g="hour">시간</button><button data-g="day">일</button><button data-g="week">주</button><button data-g="month">월</button>
         </span>
       </span>
     </h2>
@@ -183,7 +185,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   <span id="since"></span><br>
   추정매출 = 톡딜가 × 주문수 (옵션별 가격 차이는 반영되지 않은 추정치)<br>
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
-  일/주 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
+  일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -214,6 +216,7 @@ const ymd = v => v ? kms(+v.slice(0,4), +v.slice(4,6), +v.slice(6,8), +v.slice(8
 const mdLab = ms => { if(ms==null) return '-'; const p = kparts(ms); return `${p.m}/${p.d}`; };
 const lab = ms => { const p = kparts(ms), mi = new Date(ms + KST).getUTCMinutes(); return `${p.m}/${p.d} ${pad(p.h)}:${pad(mi)}`; };
 const dayKey = ms => { const p = kparts(ms - 2*36e5); return kms(p.y,p.m,p.d); };   // 자정~2시 수집분은 전날
+const monthKey = ms => { const p = kparts(dayKey(ms)); return kms(p.y,p.m,1); };
 const weekKey = ms => { const k = dayKey(ms), p = kparts(k); return k - ((p.dow+6)%7)*DAY; }; // 월요일 시작
 
 async function getJSON(p){ const r = await fetch(p, {cache:'no-cache'}); if(!r.ok) throw new Error(p+' '+r.status); return r.json(); }
@@ -478,12 +481,12 @@ function setupResize(){
 // ---- 추이 그래프 ----
 function buckets(){
   // 선택 단위별로 묶고, 각 묶음의 마지막 수집값을 쓴다
-  const keyOf = S.gran==='day' ? dayKey : S.gran==='week' ? weekKey : (t => t);
+  const keyOf = S.gran==='day' ? dayKey : S.gran==='week' ? weekKey : S.gran==='month' ? monthKey : (t => t);
   const m = new Map();
   S.inRange.forEach(s => m.set(keyOf(s.t), s));
   return [...m.entries()].map(([k, s]) => {
     const p = kparts(k);
-    const label = S.gran==='day' ? `${p.m}/${p.d}` : S.gran==='week' ? `${p.m}/${p.d}주` : lab(s.t);
+    const label = S.gran==='day' ? `${p.m}/${p.d}` : S.gran==='week' ? `${p.m}/${p.d}주` : S.gran==='month' ? `${String(p.y).slice(2)}년 ${p.m}월` : lab(s.t);
     return {label, snap: s, map: new Map(s.rows.map(r=>[String(r.productId), r]))};
   });
 }

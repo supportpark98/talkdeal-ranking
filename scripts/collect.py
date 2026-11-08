@@ -1,4 +1,4 @@
-"""카카오 톡딜 실시간 랭킹 수집기 (여러 카테고리).
+"""카카오 톡딜 일간(최근 24시간) 랭킹 수집기 (여러 카테고리).
 
 톡딜 랭킹 페이지가 내부적으로 쓰는 JSON API를 호출해 카테고리별 상위 상품을 저장한다.
 외부 패키지 없이 파이썬 표준 라이브러리만 사용한다.
@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 API = (
     "https://store.kakao.com/a/f-s/ranking/product-sale-ranking"
     "?page=0&rankingTabType=contProduct&categoryType={cat}"
-    "&periodType=HOURLY&size={size}&displayPlaceType=RANKING_TAB"
+    "&periodType=DAILY&size={size}&displayPlaceType=RANKING_TAB"
 )
 # 대시보드 드롭다운 순서. groupId는 톡딜 랭킹 페이지 주소의 groupId 값.
 CATEGORIES = [

@@ -155,9 +155,10 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   </section>
 
   <section class="card">
-    <h2><span>랭킹 <small id="cmp"></small></span>
+    <h2><span>랭킹</span>
       <button id="xlsx">엑셀 다운로드</button>
     </h2>
+    <div class="hint" id="cmp"></div>
     <div class="tablewrap">
       <table>
         <colgroup id="cols">
@@ -255,6 +256,12 @@ function slotOf(ms){
     if(hit) return {y:p.y, m:p.m, d:p.d, id:hit.id};
   }
   return null;
+}
+// 수집 시각을 '11/8 18시'처럼 집계 시간으로 표시 (정기 수집 시간에 안 맞으면 실제 시각)
+function slotLab(ms){
+  const a = slotOf(ms); if(!a) return lab(ms);
+  const sl = slotsFor(a.y, a.m, a.d).find(x => x.id === a.id);
+  return `${a.m}/${a.d} ${sl ? sl.label : ''}`.trim();
 }
 // 실제 데이터가 있는 날짜/수집 시간 목록
 function buildAvail(){
@@ -360,9 +367,9 @@ async function update(){
     r.dOrdering = b && r.ordering!=null && b.ordering!=null ? r.ordering - b.ordering : null;
     r.dSales = b && r.sales!=null && b.sales!=null ? r.sales - b.sales : null;
   });
-  $('#basis').textContent = `${S.cat.name} · 마지막 수집 ${lab(S.index.lastMs)}`;
+  $('#basis').textContent = `${S.cat.name} · 마지막 수집 ${slotLab(S.index.lastMs)}`;
   $('#rangeinfo').textContent = '';
-  $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `변동은 기간 시작(${lab(S.base.t)}) 대비, 표는 ${lab(S.cur.t)} 기준` : `변동은 직전 수집(${lab(S.base.t)}) 대비`;
+  $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `*변동은 기간 시작(${slotLab(S.base.t)}) 대비, 표는 ${slotLab(S.cur.t)} 기준` : `*변동은 직전 수집(${slotLab(S.base.t)}) 대비`;
   if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
     S.picked = S.cur.rows.slice(0,5).map(r=>String(r.productId));
   tiles(); render(); drawChart();
@@ -478,7 +485,7 @@ function buckets(){
   S.inRange.forEach(s => m.set(keyOf(s.t), s));
   return [...m.entries()].map(([k, s]) => {
     const p = kparts(k);
-    const label = S.gran==='day' ? `${p.m}/${p.d}` : S.gran==='week' ? `${p.m}/${p.d}주` : S.gran==='month' ? `${String(p.y).slice(2)}년 ${p.m}월` : lab(s.t);
+    const label = S.gran==='day' ? `${p.m}/${p.d}` : S.gran==='week' ? `${p.m}/${p.d}주` : S.gran==='month' ? `${String(p.y).slice(2)}년 ${p.m}월` : slotLab(s.t);
     return {label, snap: s, map: new Map(s.rows.map(r=>[String(r.productId), r]))};
   });
 }
@@ -604,7 +611,7 @@ async function downloadXlsx(){
       '정상가':r.originalPrice, '톡딜가':r.price, '최대혜택가':r.maxBenefitPrice, '할인율(%)':r.discountRate,
       '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':r.url}));
     const sheet2 = [];
-    S.inRange.forEach(s => s.rows.forEach(r => { const p = product(r.productId); sheet2.push({'수집시각':lab(s.t), '순위':r.rank, '상품명':p.name, '브랜드':p.brand, '카테고리':p.category,
+    S.inRange.forEach(s => s.rows.forEach(r => { const p = product(r.productId); sheet2.push({'수집시각':slotLab(s.t), '순위':r.rank, '상품명':p.name, '브랜드':p.brand, '카테고리':p.category,
       '톡딜가':r.price, '할인율(%)':r.discountRate, '주문수':r.ordering, '추정매출':r.sales,
       '정상가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '라이브 일자':dt(ymd(r.liveStartAt)), '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':p.url}); }));
     const wb = XLSX.utils.book_new();

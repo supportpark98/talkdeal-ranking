@@ -155,7 +155,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
       <span class="grp"><span class="lbl">세부 카테고리</span><select id="csub"><option value="">전체</option></select></span></span>
         <span class="qnote">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</span></span>
-      <span class="qwrap"><input id="cq" type="search" placeholder="브랜드 또는 키워드 검색"><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
+      <span class="qwrap"><input id="cq" type="search" placeholder="스토어명 또는 키워드 검색"><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
     <div class="rangeinfo" id="rangeinfo"></div>
   </section>
@@ -196,7 +196,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
         </colgroup>
         <thead><tr>
           <th data-k="rank" class="num">순위</th><th data-k="chg">변동</th>
-          <th data-k="name">상품명</th><th data-k="brand">브랜드</th>
+          <th data-k="name">상품명</th><th data-k="brand">스토어명</th>
           <th data-k="dealStartMs" class="num">딜 오픈일자</th><th data-k="liveMs" class="num">라이브 일자</th>
           <th data-k="sales" class="num">추정매출</th><th data-k="ordering" class="num">주문수</th>
           <th data-k="originalPrice" class="num">정상가</th><th data-k="price" class="num">톡딜가</th>
@@ -715,14 +715,14 @@ async function downloadXlsx(){
     if(typeof XLSX === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
     const dt = ms => { if(ms==null) return null; const p = kparts(ms); return `${p.y}-${pad(p.m)}-${pad(p.d)} ${pad(p.h)}:00`; };
     const chgText = r => !S.base ? '' : r.chg===999 ? 'NEW' : r.chg;
-    const sheet1 = tableRows().map(r => ({'순위':r.rank, '변동':chgText(r), '상품명':r.name, '브랜드':r.brand, '카테고리':r.category,
+    const sheet1 = tableRows().map(r => ({'순위':r.rank, '변동':chgText(r), '상품명':r.name, '스토어명':r.brand, '카테고리':r.category,
       '딜 오픈일자':dt(r.dealStartMs), '딜 운영일수':r.dealDays, '딜 종료':dt(r.dealEndMs), '라이브 일자':dt(r.liveMs),
       '추정매출':r.sales, '추정매출 증감':r.dSales, '일평균 추정매출':r.avgSales!=null?Math.round(r.avgSales):null,
       '주문수':r.ordering, '주문수 증감':r.dOrdering, '일평균 주문':r.avgOrdering!=null?Math.round(r.avgOrdering):null,
       '정상가':r.originalPrice, '톡딜가':r.price, '최대혜택가':r.maxBenefitPrice, '할인율(%)':r.discountRate,
       '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':r.url}));
     const sheet2 = [];
-    S.inRange.forEach(s => s.rows.forEach(r => { const p = product(r.productId); sheet2.push({'수집시각':slotLab(s.t), '순위':r.rank, '상품명':p.name, '브랜드':p.brand, '카테고리':p.category,
+    S.inRange.forEach(s => s.rows.forEach(r => { const p = product(r.productId); sheet2.push({'수집시각':slotLab(s.t), '순위':r.rank, '상품명':p.name, '스토어명':p.brand, '카테고리':p.category,
       '톡딜가':r.price, '할인율(%)':r.discountRate, '주문수':r.ordering, '추정매출':r.sales,
       '정상가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '라이브 일자':dt(ymd(r.liveStartAt)), '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':p.url}); }));
     const wb = XLSX.utils.book_new();

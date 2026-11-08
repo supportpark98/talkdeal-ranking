@@ -17,11 +17,13 @@
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:14px;line-height:1.45}
-header{background:var(--accent);color:var(--accent-ink);padding:18px 16px}
+header{background:var(--accent);color:var(--accent-ink);padding:18px 16px 0}
 h1{margin:0;font-size:20px;font-weight:800}
 .sub{font-size:13px;opacity:.8;margin-top:2px}
-.catpick{font-weight:700;display:flex;align-items:center;gap:6px}
-.catpick select{font-size:15px;font-weight:700;padding:7px 10px;border-color:rgba(0,0,0,.2);background:#fff;color:#1a1d23}
+.tabs{display:flex;gap:4px;margin-top:14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tabs button{border:none;border-radius:10px 10px 0 0;background:rgba(0,0,0,.06);color:var(--accent-ink);font-size:15px;font-weight:700;padding:9px 18px;white-space:nowrap}
+.tabs button:hover{background:rgba(0,0,0,.12);border:none}
+.tabs button.on{background:var(--bg);color:var(--text)}
 .tag{display:inline-block;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:4px;vertical-align:1px}
 .tag.rise{background:#fde8e8;color:#c8323a} .tag.live{background:#e5484d;color:#fff}
 .wrap{max-width:1180px;margin:0 auto}
@@ -95,10 +97,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
 <body>
 <header>
   <div class="wrap">
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
-      <div><h1>톡딜 일간 랭킹</h1><div class="sub" id="basis">불러오는 중…</div></div>
-      <label class="catpick">카테고리 <select id="cat"></select></label>
-    </div>
+    <h1>톡딜 일간 랭킹</h1><div class="sub" id="basis">불러오는 중…</div>
+    <nav class="tabs" id="cattabs" role="tablist" aria-label="카테고리"></nav>
   </div>
 </header>
 <main class="wrap">
@@ -540,13 +540,16 @@ async function init(){
   S.index.firstMs = Date.parse(S.index.first); S.index.lastMs = Date.parse(S.index.last);
   const want = new URLSearchParams(location.search).get('cat');
   S.cat = S.index.categories.find(c => c.key === want) || S.index.categories[0];
-  $('#cat').innerHTML = S.index.categories.map(c => `<option value="${c.key}">${esc(c.name)}</option>`).join('');
-  $('#cat').value = S.cat.key;
-  $('#cat').onchange = () => {
-    S.cat = S.index.categories.find(c => c.key === $('#cat').value);
+  const tabs = $('#cattabs');
+  tabs.innerHTML = S.index.categories.map(c => `<button role="tab" data-cat="${c.key}">${esc(c.name)}</button>`).join('');
+  const markTab = () => tabs.querySelectorAll('button').forEach(b => { const on = b.dataset.cat === S.cat.key; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  markTab();
+  tabs.querySelectorAll('button').forEach(b => b.onclick = () => {
+    if(b.dataset.cat === S.cat.key) return;
+    S.cat = S.index.categories.find(c => c.key === b.dataset.cat); markTab();
     history.replaceState(null, '', '?cat=' + S.cat.key);
     S.picked = []; $('#cq').value = ''; update();
-  };
+  });
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   $('#q').oninput = render; $('#filter').onchange = render; $('#subcat').onchange = render;

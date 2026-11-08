@@ -109,10 +109,11 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
         <button data-q="7">최근 7일</button>
         <button data-q="30">최근 30일</button>
         <button data-q="all">전체</button>
+        <button id="reset" title="오늘 10시 ~ 최근 수집으로 되돌리기">초기화</button>
       </div>
     </div>
     <div class="rangeinfo" id="rangeinfo"></div>
-    <div class="rangeinfo">랭킹 데이터는 일간 기준으로 매일 10시, 18시, 24시(자정) 수집됩니다.</div>
+    <div class="rangeinfo">랭킹 데이터는 일간 기준으로 매일 10시, 18시, 24시(자정) 자동으로 수집됩니다.</div>
   </section>
 
   <section class="tiles" id="tiles"></section>
@@ -560,9 +561,13 @@ async function init(){
   });
 
   // 기본값: 오늘 10시 ~ 가장 최근 수집. 오늘 데이터가 아직 없으면 마지막 수집일 10시부터.
-  let start = at10(Date.now());
-  if(start > last) start = at10(last);
-  setRange(start, last);
+  const resetRange = () => {
+    let start = at10(Date.now());
+    if(start > last) start = at10(last);
+    setRange(start, last);
+  };
+  $('#reset').onclick = resetRange;
+  resetRange();
 }
 init();
 </script>

@@ -32,6 +32,8 @@ button{padding:6px 12px;border:1px solid var(--line);border-radius:8px;backgroun
 button:hover{border-color:var(--muted)}
 button.on{background:var(--text);color:var(--card);border-color:var(--text)}
 button:disabled{opacity:.5;cursor:default}
+button.textbtn{border:none;background:none;color:var(--muted);font-size:12px;padding:4px 6px;margin-left:4px}
+button.textbtn:hover{color:var(--text);text-decoration:underline}
 .seg{display:inline-flex;gap:0}
 .seg button{border-radius:0;margin-left:-1px}
 .seg button:first-child{border-radius:8px 0 0 8px;margin-left:0}
@@ -102,9 +104,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
 <main class="wrap">
   <section class="card">
     <div class="range">
-      <button id="reset" title="오늘 10시 ~ 최근 수집으로 되돌리기">초기화</button>
       <div class="grp"><span class="lbl">시작</span><span id="startPick"></span></div>
-      <div class="grp"><span class="lbl">종료</span><span id="endPick"></span></div>
+      <div class="grp"><span class="lbl">종료</span><span id="endPick"></span><button id="reset" class="textbtn" title="오늘 10시 ~ 최근 수집으로 되돌리기">↺ 초기화</button></div>
       <div class="quick">
         <button data-q="today">오늘</button>
         <button data-q="7">최근 7일</button>

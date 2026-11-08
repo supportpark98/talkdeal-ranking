@@ -373,14 +373,17 @@ async function update(){
 
 // ---- 요약 카드 ----
 function tiles(){
-  const rs = S.cur.rows, top = rs[0];
+  // 위쪽 세부 카테고리·검색 필터를 함께 적용
+  const ts = terms($('#cq').value), sc = $('#csub').value, on = ts.length || sc;
+  const rs = S.cur.rows.filter(r => (!ts.length || hit(((r.name||'')+' '+(r.brand||'')).toLowerCase(), ts)) && (!sc || r.category === sc)), top = rs[0];
+  if(!top){ $('#tiles').innerHTML = '<div class="tile"><div class="k">요약</div><div class="v">-</div><div class="d">조건에 맞는 상품이 없어요</div></div>'; return; }
   const news = S.base ? rs.filter(r=>r.chg===999) : [];
   const risers = rs.filter(r=>r.chg>0 && r.chg!==999).sort((a,b)=>b.chg-a.chg);
   const hot = rs.filter(r=>r.dSales!=null).sort((a,b)=>b.dSales-a.dSales)[0];
   const total = rs.reduce((a,r)=>a+(r.sales||0),0);
   const t = (k,v,d) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
   $('#tiles').innerHTML =
-    t('1위', esc(top.brand), esc(top.name)) +
+    t(on ? `조건 내 1위 (전체 ${top.rank}위)` : '1위', esc(top.brand), esc(top.name)) +
     t('가장 많이 오른 상품', risers[0] ? `<span class="up">▲${risers[0].chg}</span> ${esc(risers[0].brand)}` : '-', risers[0] ? `${risers[0].baseRank}위 → ${risers[0].rank}위` : '상승한 상품 없음') +
     t('신규 진입', S.base ? `${news.length}개` : '-', news.slice(0,3).map(r=>esc(r.brand)).join(', ') || ' ') +
     t('추정매출 가장 많이 늘어난 상품', hot && hot.dSales>0 ? `+${won(hot.dSales)}원 ${esc(hot.brand)}` : '-', hot && hot.dSales>0 ? esc(hot.name) : `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`);
@@ -640,7 +643,7 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   $('#filter').onchange = render;
-  $('#cq').oninput = () => { drawChart(); render(); }; $('#csub').onchange = () => { drawChart(); render(); }; $('#sum').onchange = drawChart;
+  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; $('#csub').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart;
   $('#xlsx').onclick = downloadXlsx;
   $$('#cols col').forEach(c => c.dataset.w = c.style.width);
   setupResize();

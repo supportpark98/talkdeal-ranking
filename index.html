@@ -513,7 +513,18 @@ function drawChart(){
   }));
   datasets.forEach((d,i) => Object.assign(d, {borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length], tension:0, pointRadius:3, borderWidth:2, spanGaps:false}));
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
-  const yRank = {reverse:true, min:0, suggestedMax:20, afterBuildTicks: ax => { ax.ticks = ax.ticks.map(t => t.value === 0 ? {value:1} : t); }, title:{display:true,text:'순위',color:tick}, ticks:{precision:0,color:tick}, grid:{color:grid}};
+  // 순위 축: 실제 그려진 순위 범위에 맞추고 위아래로 반 칸 여백, 눈금은 정수만
+  const rs = datasets.flatMap(d => d.data).filter(v => v != null);
+  const rMin = rs.length ? Math.min(...rs) : 1, rMax = rs.length ? Math.max(...rs) : 10;
+  const span = rMax - rMin, step = span <= 12 ? 1 : span <= 30 ? 2 : span <= 60 ? 5 : 10;
+  const yRank = {reverse:true, min: rMin - 0.5, max: rMax + 0.5,
+    afterBuildTicks: ax => {
+      const t = [rMin];
+      for(let v = Math.ceil((rMin + 1) / step) * step; v < rMax; v += step) if(v - t[t.length-1] >= step / 2) t.push(v);
+      if(rMax !== t[t.length-1]){ if(rMax - t[t.length-1] < step / 2 && t.length > 1) t.pop(); t.push(rMax); }
+      ax.ticks = t.map(value => ({value}));
+    },
+    title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => v + '위'}, grid:{color:grid}};
   const yVal = {beginAtZero:true, title:{display:true,text:METRIC[metric]+(metric==='sales'?' (백만원)':''),color:tick}, ticks:{color:tick, callback:v=>metric==='sales'?won(v):fmt(v)}, grid:{color:grid}};
   // 각 점 위에 직전 점 대비 증감 표시 (순위: 오르면 ▲, 예상매출: 백만원 단위 정수, 주문수: 개수)
   const cs = getComputedStyle(document.documentElement);

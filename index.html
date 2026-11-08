@@ -538,6 +538,7 @@ function drawChart(){
   }
   S.shown = ids || [];
   if(!datasets) datasets = ids.map(id => ({
+    pid: id,
     label: `${product(id).brand||''} · ${(product(id).name||'').slice(0,20)}`,
     data: bs.map(b => { const r = b.map.get(id); return r ? r[metric] : null; })
   }));
@@ -547,6 +548,18 @@ function drawChart(){
     datasets.forEach(d => { d.real = d.data.slice(); d.data = d.data.map(v => v == null ? null : Math.min(v, 6)); });
     if(!datasets.length) hint.textContent += ' · 기간 중 5위 안에 든 상품이 없어요';
   }
+  // 순위에서 빠진 시점: 딜 종료 시각이 지났으면 '딜 종료'(처음 한 번만), 아니면 '100위권 밖'으로 맨 아래 칸에 점을 찍는다
+  if(metric === 'rank') datasets.forEach(d => {
+    if(!d.pid) return;
+    d.real = d.real || d.data.slice();
+    const endMs = ymd(product(d.pid).dealEnd); let ended = false;
+    d.status = bs.map((b, i) => {
+      if(d.real[i] != null){ ended = false; return null; }
+      if(endMs && endMs < b.snap.t){ if(ended) return null; ended = true; return 'end'; }
+      return 'out';
+    });
+  });
+  const hasOut = datasets.some(d => d.status && d.status.some(Boolean));
   datasets.forEach((d,i) => Object.assign(d, {borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length], tension:0, pointRadius:3, borderWidth:2, spanGaps:false}));
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
   // 순위 축: 실제 그려진 순위 범위에 맞추고 위아래로 반 칸 여백, 눈금은 정수만
@@ -554,7 +567,9 @@ function drawChart(){
   const rMin = rs.length ? Math.min(...rs) : 1, rMax = rs.length ? Math.max(...rs) : 10;
   // 눈금은 일정한 간격만: 범위 10 이하는 1위마다, 25 이하는 5, 60 이하는 10, 그 이상은 20 (1위는 범위 안이면 항상 표시)
   const span = rMax - rMin, step = span <= 10 ? 1 : span <= 25 ? 5 : span <= 60 ? 10 : 20;
-  const yLo = Math.max(0.5, Math.floor(rMin / step) * step - 0.5), yHi = Math.ceil(rMax / step) * step + 0.5;
+  const yBase = Math.ceil(rMax / step) * step, OUTY = top10 ? 6 : hasOut ? yBase + step : null;
+  const yLo = Math.max(0.5, Math.floor(rMin / step) * step - 0.5), yHi = (OUTY || yBase) + 0.5;
+  if(OUTY) datasets.forEach(d => { if(d.status) d.data = d.data.map((v, i) => d.status[i] ? OUTY : v); });
   const yRank = {reverse:true, min: yLo, max: yHi,
     afterBuildTicks: ax => {
       const t = [];
@@ -562,7 +577,7 @@ function drawChart(){
       for(let v = Math.ceil(yLo / step) * step; v <= yHi; v += step) if(v > 1 && v >= yLo) t.push(v);
       ax.ticks = t.map(value => ({value}));
     },
-    title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => top10 && v === 6 ? '5위 미만' : v + '위'}, grid:{color:grid}};
+    title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => top10 && v === 6 ? '5위 미만' : v === OUTY ? '100위권 밖' : v + '위'}, grid:{color:grid}};
   const yVal = {beginAtZero:true, title:{display:true,text:METRIC[metric]+(metric==='sales'?' (백만원)':''),color:tick}, ticks:{color:tick, callback:v=>metric==='sales'?won(v):fmt(v)}, grid:{color:grid}};
   // 각 점 위에 직전 점 대비 증감 표시 (순위: 오르면 ▲, 추정매출: 백만원 단위, 1백만 미만은 소수 첫째 자리, 주문수: 개수)
   const cs = getComputedStyle(document.documentElement);
@@ -580,8 +595,9 @@ function drawChart(){
       ds.data.forEach((v0, i) => {
         if(v0 == null) return;
         const v = ds.real ? ds.real[i] : v0;   // TOP 5 모드에선 점 위치와 별개로 실제 순위로 표시
-        items.push({i, v, prev, pt: meta.data[i]});
-        prev = v;
+        const st = ds.status && ds.status[i];
+        items.push({i, v, prev: st ? null : prev, pt: meta.data[i], st});
+        prev = st ? null : v;
       });
     });
     const used = {};
@@ -590,7 +606,8 @@ function drawChart(){
       let bt = it.pt.y - 6;
       for(let k = 0; k < 30; k++){ const hit = L.find(([t, b2]) => bt - h < b2 && bt > t); if(!hit) break; bt = hit[0] - 1; }
       L.push([bt - h, bt]);
-      const {v, prev, pt} = it;
+      const {v, prev, pt, st} = it;
+      if(st){ ctx.fillStyle = tick; ctx.fillText(st === 'end' ? '딜 종료' : '100위권 밖', pt.x, bt); return; }
       if(prev != null){
         let d = v - prev, txt = '-', good = d > 0;
         if(metric === 'rank'){ d = prev - v; good = d > 0; if(d) txt = (d > 0 ? '▲' : '▼') + Math.abs(d); }
@@ -606,7 +623,7 @@ function drawChart(){
     responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false}, layout:{padding:{top: 32, left:4, right:20}},
     scales:{ y: metric==='rank' ? yRank : yVal, x:{ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
-      tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw; return `${c.dataset.label}: ${raw==null?'순위권 밖': metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}`; }}} }
+      tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw, st = c.dataset.status && c.dataset.status[c.dataIndex]; return `${c.dataset.label}: ${raw==null ? (st==='end' ? '딜 종료' : '100위권 밖') : metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}`; }}} }
   }});
 }
 

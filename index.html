@@ -194,7 +194,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   매일 9시, 16시, 18시, 23시 집계분을 자동 수집 · 출처: 카카오 톡딜 랭킹<br>
   카카오가 정각 집계를 약 40분 뒤에 반영해서, 실제 수집은 각 정각의 약 50분 뒤에 이뤄집니다.<br>
   <span id="since"></span><br>
-  추정매출 = 톡딜가 × 주문수 (옵션별 가격 차이는 반영되지 않은 추정치)<br>
+  추정매출 = 수집할 때마다 늘어난 주문수 × 그때의 톡딜가를 더한 값 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로, 옵션별 가격 차이는 반영되지 않은 추정치)<br>
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
   일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
 </footer>
@@ -338,11 +338,22 @@ async function ensureMonths(s, e){
     const j = await getJSON(`data/monthly/${k}.json`);
     S.months[k] = j.snaps.map(sn => ({t: Date.parse(sn.t), agg: sn.agg, rows: sn.rows.map(r => {
       const o = {}; j.cols.forEach((c,i)=>o[c]=r[i]);
-      o.sales = o.price!=null && o.ordering!=null ? o.price*o.ordering : null;
       return o;
     })}));
   }));
   S.snaps = Object.entries(S.months).filter(([k]) => k.startsWith(S.cat.key+'/')).flatMap(([,v]) => v).sort((a,b)=>a.t-b.t);
+  accumulateSales(S.snaps);
+}
+// 추정매출은 수집마다 '늘어난 주문수 × 그때 톡딜가'를 더해 간다 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로).
+// 처음 보이는 시점에는 그때까지 쌓인 주문 전체를 그때 가격으로 계산하고, 주문수가 줄면(새 딜) 처음부터 다시 쌓는다.
+function accumulateSales(snaps){
+  const st = new Map();
+  snaps.forEach(sn => sn.rows.forEach(o => {
+    if(o.price == null || o.ordering == null){ o.sales = null; return; }
+    const k = String(o.productId), p = st.get(k);
+    const acc = !p || o.ordering < p.ord ? o.price * o.ordering : p.acc + (o.ordering - p.ord) * o.price;
+    st.set(k, {ord: o.ordering, acc}); o.sales = acc;
+  }));
 }
 
 function product(id){ return S.products[id] || {}; }

@@ -238,6 +238,12 @@ def main():
         if any(slot_of(datetime.fromisoformat(x["t"])) == slot for x in snaps[-3:]):
             print(f"{slot[0]} {slot[1]}시 수집은 이미 저장되어 있어 건너뜀")
             return
+        # 카카오가 아직 그 시각 집계를 반영하기 전이면(예: 9시 슬롯인데 집계가 8시) 저장하지 않고 다음 실행(백업)에 맡긴다
+        agg = str(fetch(targets[0]["key"], 1).get("aggregatedAt") or "")
+        want = slot[0].replace("-", "") + f"{slot[1]:02d}"
+        if not agg.startswith(want):
+            print(f"집계 {agg}가 {slot[0]} {slot[1]}시 기준이 아니라 건너뜀")
+            return
     t_iso = datetime.now(KST).isoformat(timespec="seconds")
     failed = []
     mx_cache = {}

@@ -445,7 +445,7 @@ async function update(){
   $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `*변동은 기간 시작(${slotLab(S.base.t)}) 대비, 표는 종료(${slotLab(S.cur.t)}) 기준` : `*변동은 직전 수집(${slotLab(S.base.t)}) 대비`;
   if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
     S.picked = S.cur.rows.slice(0,DEFPICK).map(r=>String(r.productId));
-  tiles(); render(); drawChart();
+  tiles(); drawChart(); render();   // 추이에 표시할 상품(S.shown)을 먼저 정한 뒤 표에 노란 표시
 }
 
 // ---- 요약 카드 ----
@@ -772,7 +772,7 @@ function drawChart(){
   }};
   S.chart = new Chart($('#chart'), {type:'line', data:{labels: bs.map(b=>b.label), datasets}, plugins:[deltaLabels], options:{
     responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false}, layout:{padding:{top: 32, left:4, right:20}},
-    scales:{ y: metric==='rank' ? yRank : yVal, x:{ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
+    scales:{ y: metric==='rank' ? yRank : yVal, x:{offset:true, ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
       tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw, st = c.dataset.status && c.dataset.status[c.dataIndex]; return `${c.dataset.label}: ${raw==null ? (st==='end' ? '딜 종료' : '100위권 밖') : metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}`; }}} }
   }});
@@ -832,7 +832,7 @@ async function init(){
     if(b.dataset.cat === S.cat.key) return;
     S.cat = S.index.categories.find(c => c.key === b.dataset.cat); markTab();
     history.replaceState(null, '', '?cat=' + S.cat.key);
-    S.picked = []; $('#cq').value = ''; update();
+    S.picked = []; S.shown = null; S.fpicked = []; $('#cq').value = ''; update();
   });
   S.bound = firstBound();
   $('#since').textContent = `${S.bound.y}년 ${S.bound.m}월 ${S.bound.d}일 ${S.bound.slot.label} 데이터부터 조회할 수 있습니다.`;

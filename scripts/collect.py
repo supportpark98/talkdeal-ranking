@@ -197,6 +197,23 @@ def rebuild_index(out):
                {"categories": cats, "productMonths": pmonths, "first": first, "last": last, "count": count, "times": times})
 
 
+# 정해진 수집 시각(9·16·18·23시 50분, 백업은 20분 뒤). 각 시각의 40분 ~ 다음 시 40분 사이 실행만 그 슬롯으로 저장한다.
+# GitHub 예약 실행이 몇 시간씩 늦게 도는 경우가 있어서, 창 밖에서 돈 실행은 저장하지 않는다.
+SLOT_HOURS = (9, 16, 18, 23)
+
+
+def slot_of(dt):
+    """KST 시각 -> (날짜 'YYYY-MM-DD', 슬롯 시) 또는 None. 0시대 실행은 전날 23시로 친다."""
+    dt = dt.astimezone(KST)
+    for h in SLOT_HOURS:
+        start = dt.replace(hour=h, minute=40, second=0, microsecond=0)
+        if h == 23 and dt.hour == 0:
+            start -= timedelta(days=1)
+        if start <= dt < start + timedelta(hours=1):
+            return (start.strftime("%Y-%m-%d"), h)
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--size", type=int, default=100)
@@ -204,18 +221,22 @@ def main():
     ap.add_argument("--cat", action="append", help="특정 카테고리만 (예: CHILD)")
     # 임시: 갱신 시점 테스트용으로 실시간(HOURLY) 전체 랭킹도 data/test_hourly/에 따로 저장 (대시보드에는 안 나옴)
     ap.add_argument("--hourly-test", action="store_true")
-    # 백업 수집용: 카카오 집계 시각(aggregatedAt)이 이미 저장된 마지막 수집과 같으면 저장하지 않고 끝낸다
+    # 정기 수집용: 수집 시각 창 밖이거나, 그 슬롯이 이미 저장돼 있으면(본 수집이 끝난 뒤의 백업 등) 저장하지 않는다
     ap.add_argument("--skip-if-saved", action="store_true")
     args = ap.parse_args()
 
     targets = [c for c in CATEGORIES if not args.cat or c["key"] in args.cat]
     if args.skip_if_saved:
-        agg = fetch(targets[0]["key"], 1).get("aggregatedAt")
+        now = datetime.now(KST)
+        slot = slot_of(now)
+        if not slot:
+            print(f"{now:%m/%d %H:%M}은 정해진 수집 시각이 아니라 건너뜀 (늦게 시작된 예약 실행)")
+            return
         d = os.path.join(args.out, "monthly", targets[0]["key"])
         months = sorted(n for n in os.listdir(d) if n.endswith(".json")) if os.path.isdir(d) else []
         snaps = read_json(os.path.join(d, months[-1]), {}).get("snaps", []) if months else []
-        if snaps and snaps[-1].get("agg") == agg:
-            print(f"집계 {agg}는 이미 저장되어 있어 건너뜀")
+        if any(slot_of(datetime.fromisoformat(x["t"])) == slot for x in snaps[-3:]):
+            print(f"{slot[0]} {slot[1]}시 수집은 이미 저장되어 있어 건너뜀")
             return
     t_iso = datetime.now(KST).isoformat(timespec="seconds")
     failed = []

@@ -393,6 +393,9 @@ async function ensureMonths(s, e){
     })}));
   }));
   S.snaps = Object.entries(S.months).filter(([k]) => k.startsWith(S.cat.key+'/')).flatMap(([,v]) => v).sort((a,b)=>a.t-b.t);
+  // 같은 날 같은 수집 시각(슬롯)에 스냅샷이 둘 이상이면 가장 늦은 것 하나만 쓴다 (늦게 돈 예약 실행 등)
+  { const keep = new Map(); S.snaps.forEach(s => { const o = slotOf(s.t); keep.set(o ? `${o.y}-${o.m}-${o.d}-${o.id}` : s.t, s); });
+    S.snaps = [...keep.values()].sort((a,b)=>a.t-b.t); }
   accumulateSales(S.snaps);
 }
 // 추정매출은 수집마다 '늘어난 주문수 × 그때 톡딜가'를 더해 간다 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로).

@@ -726,7 +726,10 @@ function drawChart(){
       ax.ticks = t.map(value => ({value}));
     },
     title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => top10 && v === 11 ? '10위 미만' : v === OUTY ? '100위권 밖' : v + '위'}, grid:{color:grid}};
-  const yVal = {beginAtZero:true, title:{display:true,text:METRIC[metric]+(metric==='sales'?' (백만원)':''),color:tick}, ticks:{color:tick, callback:v=>metric==='sales'?won(v):fmt(v)}, grid:{color:grid}};
+  const yVal = {beginAtZero:true,
+    title:{display:true,text:METRIC[metric]+(metric==='sales'?' (백만원)':''),color:tick},
+    ticks:{color:tick, callback:v=> v < 0 ? '' : metric==='sales'?won(v):fmt(v)},
+    grid:{color: c => c.tick && c.tick.value < 0 ? 'transparent' : grid}};
   // 각 점 위에 직전 점 대비 증감 표시 (순위: 오르면 ▲, 추정매출: 백만원 단위, 1백만 미만은 소수 첫째 자리, 주문수: 개수)
   const cs = getComputedStyle(document.documentElement);
   const upC = cs.getPropertyValue('--up').trim() || '#e5484d', downC = cs.getPropertyValue('--down').trim() || '#2f6fde';
@@ -748,31 +751,44 @@ function drawChart(){
         prev = st ? null : v;
       });
     });
-    const used = {};
-    items.sort((a, b) => b.pt.y - a.pt.y).forEach(it => {
-      const h = it.prev != null ? 24 : 12, L = used[it.i] = used[it.i] || [];
-      let bt = it.pt.y - 6;
-      for(let k = 0; k < 30; k++){ const hit = L.find(([t, b2]) => bt - h < b2 && bt > t); if(!hit) break; bt = hit[0] - 1; }
-      // 위로 밀다가 그래프 위쪽 밖으로 나가면 점 아래쪽에 놓는다
-      if(bt - h < 2){ bt = it.pt.y + 8 + h;
-        for(let k = 0; k < 30; k++){ const hit = L.find(([t, b2]) => bt - h < b2 && bt > t); if(!hit) break; bt = hit[1] + 1 + h; } }
-      L.push([bt - h, bt]);
+    // 같은 시점의 라벨은 점의 위아래 순서 그대로 쌓는다(위쪽 선의 라벨이 항상 위). 각 라벨은 자기 점 바로 위가 기본,
+    // 겹치면 위로 밀고, 그래프 위쪽을 넘으면 전체를 아래로 내린다
+    const area = chart.chartArea, byX = {};
+    items.forEach(it => { it.h = it.prev != null ? 24 : 12; (byX[it.i] = byX[it.i] || []).push(it); });
+    Object.values(byX).forEach(g => {
+      g.sort((a, b) => a.pt.y - b.pt.y);
+      g.forEach(it => it.bt = it.pt.y - 6);
+      for(let k = g.length - 2; k >= 0; k--) g[k].bt = Math.min(g[k].bt, g[k+1].bt - g[k+1].h - 1);
+      if(g[0].bt - g[0].h < area.top - 14){
+        g[0].bt = area.top - 14 + g[0].h;
+        for(let k = 1; k < g.length; k++) g[k].bt = Math.max(g[k].bt, g[k-1].bt + g[k].h + 1);
+      }
+    });
+    // 글자 둘레에 배경색 테두리를 둘러서, 다른 선이나 점 위에 겹쳐도 읽히게
+    const halo = cs.getPropertyValue('--card').trim() || '#fff';
+    ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = halo;
+    const put = (t, x, y) => { ctx.strokeText(t, x, y); ctx.fillText(t, x, y); };
+    items.forEach(it => {
+      const bt = it.bt;
       const {v, prev, pt, st} = it;
-      if(st){ ctx.fillStyle = tick; ctx.fillText(st === 'end' ? '딜 종료' : '100위권 밖', pt.x, bt); return; }
+      if(st){ ctx.fillStyle = tick; put(st === 'end' ? '딜 종료' : '100위권 밖', pt.x, bt); return; }
       if(prev != null){
         let d = v - prev, txt = '-', good = d > 0;
         if(metric === 'rank'){ d = prev - v; good = d > 0; if(d) txt = (d > 0 ? '▲' : '▼') + Math.abs(d); }
         else if(metric === 'sales'){ const v2 = d / 1e6, mm = Math.abs(v2) >= 1 ? Math.round(v2) : Math.round(v2 * 10) / 10; d = mm; if(mm) txt = (mm > 0 ? '+' : '') + mm.toLocaleString('ko-KR') + '백만'; }
         else if(d){ txt = (d > 0 ? '+' : '') + fmt(d); }
-        ctx.fillStyle = !d ? tick : good ? upC : downC; ctx.fillText(txt, pt.x, bt);
+        ctx.fillStyle = !d ? tick : good ? upC : downC; put(txt, pt.x, bt);
       }
-      if(showVal){ ctx.fillStyle = tick; ctx.fillText(valTxt(v), pt.x, bt - (prev != null ? 12 : 0)); }
+      if(showVal){ ctx.fillStyle = tick; put(valTxt(v), pt.x, bt - (prev != null ? 12 : 0)); }
     });
     ctx.restore();
   }};
   S.chart = new Chart($('#chart'), {type:'line', data:{labels: bs.map(b=>b.label), datasets}, plugins:[deltaLabels], options:{
     responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false}, layout:{padding:{top: 32, left:4, right:20}},
-    scales:{ y: metric==='rank' ? yRank : yVal, x:{offset:true, ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
+    scales:{ y: metric==='rank' ? yRank : yVal, x:{offset:false,
+      // 양끝 여백: 점이 1개면 가운데, 2개 이상이면 점 간격의 1/4
+      beforeCalculateLabelRotation: sc => { const n = sc.max - sc.min, pad = n > 0 ? n/(n)*0.25 : 0.5; sc._startValue = sc.min - pad; sc._endValue = sc.max + pad; sc._valueRange = n + 2*pad; },
+      ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
       tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw, st = c.dataset.status && c.dataset.status[c.dataIndex]; return `${c.dataset.label}: ${raw==null ? (st==='end' ? '딜 종료' : '100위권 밖') : metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}`; }}} }
   }});

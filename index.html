@@ -52,6 +52,15 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .seg button:last-child{border-radius:0 8px 8px 0}
 .range{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
 .range .grp{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+/* 카테고리 다중 선택 */
+.msel{position:relative;display:inline-block}
+.mselbtn{padding:6px 26px 6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);cursor:pointer;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;position:relative;text-align:left}
+.mselbtn::after{content:'▾';position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted)}
+.mselpop{position:absolute;z-index:30;top:calc(100% + 4px);left:0;min-width:220px;max-height:320px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:6px}
+.mselpop label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;white-space:nowrap;font-size:14px}
+.mselpop label:hover{background:var(--bg)}
+.mselpop label.all{border-bottom:1px solid var(--line);border-radius:6px 6px 0 0;margin-bottom:4px}
+.mselpop .cnt{color:var(--muted);font-size:12px;margin-left:auto;padding-left:10px}
 .range .lbl,.searchbar .lbl{font-size:12px;color:var(--muted);font-weight:600;margin-right:4px}
 .searchbar .grp{display:flex;align-items:center;gap:4px}
 .range .quick{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
@@ -156,6 +165,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <div class="grp"><span class="lbl">시작</span><span id="startPick"></span></div>
       <div class="grp"><span class="lbl">종료</span><span id="endPick"></span><button id="reset" class="textbtn" title="오늘 첫 수집 ~ 최근 수집으로 되돌리기">↺ 초기화</button></div>
       <div class="quick">
+        <button data-q="yday">어제</button>
         <button data-q="today">오늘</button>
         <button data-q="7">최근 7일</button>
         <button data-q="30">최근 30일</button>
@@ -164,7 +174,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     </div>
     <div class="toolbar searchbar">
       <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
-      <span class="grp"><span class="lbl">세부 카테고리</span><select id="csub"><option value="">전체</option></select></span></span>
+      <span class="grp"><span class="lbl">카테고리</span><span class="msel" id="csub"><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden></div></span></span></span>
         <span class="qnote">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</span></span>
       <span class="qwrap"><input id="cq" type="search" placeholder="스토어명 또는 키워드 검색"><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
@@ -246,7 +256,7 @@ const COLORS = ['#e5484d','#2f6fde','#12a150','#f5a524','#8e4ec6','#0ea5a4','#d6
 const DAY = 864e5, KST = 9*36e5;
 const METRIC = {rank:'순위', sales:'추정매출', ordering:'주문수'};
 
-const S = {index:null, cat:null, products:{}, prodLoaded:{}, months:{}, snaps:[], inRange:[], cur:null, base:null,
+const S = {csub:[], index:null, cat:null, products:{}, prodLoaded:{}, months:{}, snaps:[], inRange:[], cur:null, base:null,
   start:0, end:0, metric:'rank', gran:'hour', sort:{k:'rank',dir:1}, picked:[], chart:null};
 
 // ---- 시간 도우미 (모든 표시는 한국 시간) ----
@@ -430,8 +440,8 @@ async function update(){
 // ---- 요약 카드 ----
 function tiles(){
   // 위쪽 세부 카테고리·검색 필터를 함께 적용
-  const ts = terms($('#cq').value), sc = $('#csub').value, dl = !!$('#deal').value, on = ts.length || sc || dl;
-  const rs = S.cur.rows.filter(r => (!ts.length || hit(((r.name||'')+' '+(r.brand||'')).toLowerCase(), ts)) && (!sc || r.category === sc) && (!dl || r.ordering != null)), top = rs[0];
+  const ts = terms($('#cq').value), dl = !!$('#deal').value;
+  const rs = S.cur.rows.filter(r => (!ts.length || hit(((r.name||'')+' '+(r.brand||'')).toLowerCase(), ts)) && catOk(r.category) && (!dl || r.ordering != null)), top = rs[0];
   if(!top){ $('#tiles').innerHTML = '<div class="tile"><div class="k">요약</div><div class="v">-</div><div class="d">조건에 맞는 상품이 없어요</div></div>'; return; }
   // 브랜드별 상품 수 / 추정매출 합계 (같으면 더 높은 순위의 브랜드 먼저)
   const B = new Map();
@@ -446,10 +456,10 @@ function tiles(){
   const tp = (k,chg,name,d) => `<div class="tile"><div class="k">${k}</div><div class="v row"><span class="up">${chg}</span><span class="mq"><span><i>${esc(name)}</i></span></span></div><div class="d">${d}</div></div>`;
   $('#tiles').innerHTML =
     t('최다 랭크인 스토어', esc(most.brand), `총 ${most.n}개 상품`) +
-    t('매출 1위 스토어', rich ? esc(rich.brand) : '-', rich ? `추정매출 총 ${won(rich.sales)}원` : '추정매출 데이터 없음') +
-    (risers[0] ? tp('순위 급상승 상품', `▲${risers[0].chg}`, risers[0].name, `${risers[0].baseRank}위 → ${risers[0].rank}위 · ${esc(risers[0].brand)}`)
+    t('매출 1위 스토어', rich ? esc(rich.brand) : '-', rich ? `총 ${won(rich.sales)}원` : '추정매출 데이터 없음') +
+    (risers[0] ? tp('순위 급상승 상품', `▲${risers[0].chg}`, risers[0].name, `${risers[0].baseRank}위 → ${risers[0].rank}위`)
                : t('순위 급상승 상품', '-', '상승한 상품 없음')) +
-    (hot && hot.dSales>0 ? tp('매출 급상승 상품', `+${won(hot.dSales)}원`, hot.name, `${won(hot.sales - hot.dSales)}원 → ${won(hot.sales)}원 · ${esc(hot.brand)}`)
+    (hot && hot.dSales>0 ? tp('매출 급상승 상품', `+${won(hot.dSales)}원`, hot.name, `${won(hot.sales - hot.dSales)}원 → ${won(hot.sales)}원`)
                : t('매출 급상승 상품', '-', `상위 ${rs.length}개 추정매출 합계 ${won(total)}원`));
   marquee();
 }
@@ -486,11 +496,33 @@ function toast(msg){ let t = document.getElementById('toast'); if(!t){ t = docum
 // 쉼표로 여러 검색어 (최대 8개). 하나라도 포함하면 일치
 const terms = v => v.split(',').map(t => t.trim().toLowerCase()).filter(Boolean).slice(0, 8);
 const hit = (text, ts) => ts.some(t => text.includes(t));
+// 카테고리 다중 선택: 아무것도 안 고르면 전체
+function catOk(c){ return !S.csub.length || S.csub.includes(c); }
+function catLabel(){ const n = S.csub.length; return !n ? '전체' : n === 1 ? S.csub[0] : `${S.csub[0]} 외 ${n-1}개`; }
+function buildCatMenu(cats, cnt){
+  const box = $('#csub'), pop = box.querySelector('.mselpop');
+  pop.innerHTML = `<label class="all"><input type="checkbox" data-c=""${S.csub.length ? '' : ' checked'}>전체</label>` +
+    cats.map(c => `<label><input type="checkbox" data-c="${esc(c)}"${S.csub.includes(c) ? ' checked' : ''}>${esc(c)}<span class="cnt">${cnt[c]}</span></label>`).join('');
+  box.querySelector('.mselbtn').textContent = catLabel();
+}
+function setupCatMenu(onChange){
+  const box = $('#csub'), btn = box.querySelector('.mselbtn'), pop = box.querySelector('.mselpop');
+  const open = v => { pop.hidden = !v; btn.setAttribute('aria-expanded', v); };
+  btn.onclick = e => { e.stopPropagation(); open(pop.hidden); };
+  document.addEventListener('click', e => { if(!box.contains(e.target)) open(false); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') open(false); });
+  pop.addEventListener('change', e => {
+    const c = e.target.dataset.c; if(c == null) return;
+    if(c === '') S.csub = [];
+    else S.csub = e.target.checked ? [...S.csub, c] : S.csub.filter(x => x !== c);
+    onChange();
+  });
+}
 function tableRows(){
   const ts = terms($('#cq').value), f = 'all';
   let rs = S.cur.rows.filter(r => !ts.length || hit(((r.name||'')+' '+(r.brand||'')).toLowerCase(), ts));
   if($('#deal').value) rs = rs.filter(r => r.ordering != null);
-  const sc = $('#csub').value; if(sc) rs = rs.filter(r=>r.category===sc);
+  if(S.csub.length) rs = rs.filter(r=>catOk(r.category));
   if(f==='up') rs = rs.filter(r=>r.chg>0 && r.chg!==999);
   if(f==='down') rs = rs.filter(r=>r.chg<0);
   if(f==='new') rs = rs.filter(r=>r.chg===999);
@@ -600,13 +632,13 @@ function drawChart(){
   if(!S.inRange.length){ hint.textContent = ''; return; }
   const bs = buckets(), metric = S.metric, ts = terms($('#cq').value);
   // 추이 전용 세부 카테고리 (기간 안에 등장한 상품 기준)
-  { const sel = $('#csub'), keep = sel.value, cnt = {};
+  { const cnt = {};
     const seen0 = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen0.add(String(r.productId))));
     seen0.forEach(id => { const c = product(id).category; if(c) cnt[c] = (cnt[c]||0) + 1; });
     const cats = Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a] || a.localeCompare(b,'ko'));
-    sel.innerHTML = '<option value="">전체</option>' + cats.map(c=>`<option value="${esc(c)}">${esc(c)} (${cnt[c]})</option>`).join('');
-    sel.value = cats.includes(keep) ? keep : ''; }
-  const csub = $('#csub').value, dealOnly = !!$('#deal').value, q = ts.length > 0 || !!csub || dealOnly;
+    S.csub = S.csub.filter(c => cats.includes(c));
+    buildCatMenu(cats, cnt); }
+  const csub = S.csub.join(', '), dealOnly = !!$('#deal').value, q = ts.length > 0 || !!csub || dealOnly;
   S.filterOn = q; if(!q) S.matchIds = new Set();
   // 검색 조건이 바뀌면 조건 안에서 고른 상품은 초기화
   const fkey = ts.join(',') + '|' + csub + '|' + dealOnly; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; }
@@ -620,7 +652,7 @@ function drawChart(){
   if(q){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
     const txt = id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')).toLowerCase(); };
-    const match = [...seen].filter(id => (!ts.length || hit(txt(id), ts)) && (!csub || product(id).category === csub) && (!dealOnly || S.inRange.some(s => s.rows.some(r => String(r.productId) === id && r.ordering != null))));
+    const match = [...seen].filter(id => (!ts.length || hit(txt(id), ts)) && catOk(product(id).category) && (!dealOnly || S.inRange.some(s => s.rows.some(r => String(r.productId) === id && r.ordering != null))));
     S.matchIds = new Set(match);
     // 종료 시점 순위가 높은 순. 종료 시점에 랭킹에 없던 상품은 그 뒤에, 마지막으로 보인 시점이 늦고 순위가 높은 순
     const lastRank = id => { for(let i=bs.length-1;i>=0;i--){ const r = bs[i].map.get(id); if(r) return [bs.length-1-i, r.rank]; } return [1e9, 1e9]; };
@@ -797,7 +829,7 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   
-  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; $('#csub').onchange = () => { tiles(); drawChart(); render(); }; $('#deal').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart;
+  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart;
   $('#xlsx').onclick = downloadXlsx;
   $$('#cols col').forEach(c => c.dataset.w = c.style.width);
   setupResize();
@@ -811,6 +843,8 @@ async function init(){
   const at10 = ms => { const p = kparts(ms); return kms(p.y,p.m,p.d,9); };   // 그날 첫 수집(9시)
   $$('[data-q]').forEach(b => b.onclick = () => {
     const q = b.dataset.q;
+    // 어제: 오늘 날짜 기준 하루 전 9시 ~ 23시
+    if(q==='yday'){ const y = at10(Date.now()) - DAY; setRange(Math.max(y, first), Math.min(y + 14*3600e3, last)); return; }
     const st = q==='today' ? at10(last) : q==='all' ? first : at10(last) - (+q-1)*DAY;
     setRange(Math.max(q==='all' ? first : st, first), last);
   });
@@ -822,7 +856,7 @@ async function init(){
     setRange(Math.max(start, first), last);
   };
   // 초기화: 기간과 함께 톡딜상품 여부/세부 카테고리/검색어도 처음 상태로
-  $('#reset').onclick = () => { $('#deal').value = ''; $('#csub').value = ''; $('#cq').value = ''; resetRange(); };
+  $('#reset').onclick = () => { $('#deal').value = ''; S.csub = []; $('#cq').value = ''; resetRange(); };
   resetRange();
 }
 init();

@@ -165,10 +165,9 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   <section class="card">
     <div class="range">
       <div class="grp"><span class="lbl">시작</span><span id="startPick"></span></div>
-      <div class="grp"><span class="lbl">종료</span><span id="endPick"></span><button id="reset" class="textbtn" title="오늘 첫 수집 ~ 최근 수집으로 되돌리기">↺ 초기화</button></div>
+      <div class="grp"><span class="lbl">종료</span><span id="endPick"></span><button id="reset" class="textbtn" title="최근 1일(어제 첫 수집 ~ 최근 수집)로 되돌리기">↺ 초기화</button></div>
       <div class="quick">
-        <button data-q="yday">어제</button>
-        <button data-q="today">오늘</button>
+        <button data-q="1d">최근 1일</button>
         <button data-q="7">최근 7일</button>
         <button data-q="30">최근 30일</button>
         <button data-q="all">전체</button>
@@ -852,17 +851,13 @@ async function init(){
   $$('[data-q]').forEach(b => b.onclick = () => {
     const q = b.dataset.q;
     // 어제: 오늘 날짜 기준 하루 전 9시 ~ 23시
-    if(q==='yday'){ const y = at10(Date.now()) - DAY; setRange(Math.max(y, first), Math.min(y + 14*3600e3, last)); return; }
-    const st = q==='today' ? at10(last) : q==='all' ? first : at10(last) - (+q-1)*DAY;
+    // 최근 1일: 어제 첫 수집(9시) ~ 가장 최근 수집
+    const st = q==='1d' ? at10(last) - DAY : q==='all' ? first : at10(last) - (+q-1)*DAY;
     setRange(Math.max(q==='all' ? first : st, first), last);
   });
 
-  // 기본값: 오늘 9시 ~ 가장 최근 수집. 오늘 데이터가 아직 없으면 마지막 수집일 9시부터.
-  const resetRange = () => {
-    let start = at10(Date.now());
-    if(start > last) start = at10(last);
-    setRange(Math.max(start, first), last);
-  };
+  // 기본값: 최근 1일 (어제 9시 ~ 가장 최근 수집)
+  const resetRange = () => setRange(Math.max(at10(last) - DAY, first), last);
   // 초기화: 기간과 함께 톡딜상품 여부/세부 카테고리/검색어도 처음 상태로
   $('#reset').onclick = () => { $('#deal').value = ''; S.csub = []; $('#cq').value = ''; resetRange(); };
   resetRange();

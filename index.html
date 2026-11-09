@@ -360,7 +360,15 @@ function readPickers(){
   if(b.to <= a.from){ setPicker($('#endPick'), a.from, true); b = getPicker($('#endPick')); }
   S.startDay = a.day; S.endDay = b.day;
   S.start = a.from; S.end = b.to - 1;
+  autoGran();
   update();
+}
+// 기간이 바뀌면 추이 단위를 기본값으로: 4일(96시간) 이하 시간, 31일 이하 일, 그보다 길면 주
+// 행사 기본 단위(약 79시간)가 시간 단위로 보이도록 여유 있게 잡음. 직접 누른 단위는 다음 기간 변경 전까지 유지
+function autoGran(){
+  const h = (S.end - S.start) / 3600e3;
+  S.gran = h <= 96 ? 'hour' : h <= 31*24 ? 'day' : 'week';
+  $$('#gran button').forEach(x => x.classList.toggle('on', x.dataset.g === S.gran));
 }
 function setRange(s, e){ setPicker($('#startPick'), s); setPicker($('#endPick'), e, true); readPickers(); }
 
@@ -405,8 +413,6 @@ async function update(){
   const multiDay = S.startDay !== S.endDay;
   $('#gran').style.display = multiDay ? '' : 'none';
   if(!multiDay) S.gran = 'hour';
-  else if(S._wasSingle !== false && S.gran === 'hour') S.gran = 'day';
-  S._wasSingle = !multiDay;
   $$('#gran button').forEach(b => b.classList.toggle('on', b.dataset.g === S.gran));
 
   if(!S.inRange.length){

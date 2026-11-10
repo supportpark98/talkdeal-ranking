@@ -387,7 +387,7 @@ async function ensureMonths(s, e){
   await Promise.all(needP.map(async mk => { Object.assign(S.products, await getJSON(`data/products/${mk}.json`)); S.prodLoaded[mk] = true; }));
   await Promise.all(need.map(async k => {
     const j = await getJSON(`data/monthly/${k}.json`);
-    S.months[k] = j.snaps.map(sn => ({t: Date.parse(sn.t), agg: sn.agg, rows: sn.rows.map(r => {
+    S.months[k] = j.snaps.map(sn => ({t: Date.parse(sn.t), agg: sn.agg, filledFrom: sn.filledFrom, rows: sn.rows.map(r => {
       const o = {}; j.cols.forEach((c,i)=>o[c]=r[i]);
       return o;
     })}));
@@ -450,7 +450,9 @@ async function update(){
     r.dSales = b && r.sales!=null && b.sales!=null ? r.sales - b.sales : null;
   });
   $('#basis').textContent = `${S.cat.name} · 마지막 수집 ${slotLab(S.index.lastMs)}`;
-  $('#rangeinfo').textContent = '';
+  // 카카오 집계 이상으로 다른 시각 값을 대신 넣은 수집분이 기간 안에 있으면 알려 준다
+  { const f = S.inRange.filter(x => x.filledFrom);
+    $('#rangeinfo').textContent = f.map(x => `*${slotLab(x.t)} 데이터는 카카오 집계 오류로 ${slotLab(Date.parse(x.filledFrom))} 값을 대신 넣었어요.`).join(' '); }
   $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `*변동은 기간 시작(${slotLab(S.base.t)}) 대비, 표는 종료(${slotLab(S.cur.t)}) 기준` : `*변동은 직전 수집(${slotLab(S.base.t)}) 대비`;
   if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
     S.picked = S.cur.rows.slice(0,DEFPICK).map(r=>String(r.productId));

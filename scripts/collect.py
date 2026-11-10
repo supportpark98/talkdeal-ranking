@@ -6,6 +6,7 @@
 저장 구조 (장기 보관을 위해 압축 형식으로 저장):
 - data/monthly/<카테고리>/YYYY-MM.json : 그 달의 수집 시점별 순위표
 - data/products/YYYY-MM.json          : 그 달에 등장한 상품 정보 (이름, 브랜드, 링크 등)
+- data/product_history/YYYY-MM.json   : 상품 정보 변경 이력 (값이 바뀔 때만 기록)
 - data/index.json                     : 카테고리 목록, 카테고리별 월 목록, 처음/마지막 수집 시각
 
 사용법: python scripts/collect.py [--size 100] [--out data] [--cat CHILD ...]
@@ -172,6 +173,26 @@ def save_snapshot(out, cat, t_iso, agg, rows, metas):
     products = read_json(ppath, {})
     products.update(metas)
     write_json(ppath, products)
+    record_history(out, month, metas, t_iso)
+
+
+# 상품 정보 변경 이력: data/product_history/YYYY-MM.json = {상품코드: [{"t": 바뀐 수집 시각, ...그때 값}, ...]}
+# 아래 값 중 하나라도 직전 기록과 달라질 때만 한 줄 덧붙인다. 대시보드는 이 파일을 읽지 않는다(용량 절약).
+HIST_KEYS = ("name", "brand", "category", "url", "image", "brandStore", "freeDelivery")
+
+
+def record_history(out, month, metas, t_iso):
+    hpath = os.path.join(out, "product_history", f"{month}.json")
+    hist = read_json(hpath, {})
+    changed = False
+    for pid, meta in metas.items():
+        cur = {k: meta.get(k) for k in HIST_KEYS}
+        h = hist.setdefault(str(pid), [])
+        if not h or {k: h[-1].get(k) for k in HIST_KEYS} != cur:
+            h.append({"t": t_iso, **cur})
+            changed = True
+    if changed:
+        write_json(hpath, hist)
 
 
 def rebuild_index(out):

@@ -7,11 +7,13 @@
 - data/monthly/<카테고리>/YYYY-MM.json : 그 달의 수집 시점별 순위표
 - data/products/YYYY-MM.json          : 그 달에 등장한 상품 정보 (이름, 브랜드, 링크 등)
 - data/product_history/YYYY-MM.json   : 상품 정보 변경 이력 (값이 바뀔 때만 기록)
+- data/raw/YYYY-MM-DD.json.gz          : 하루 한 번(23시 수집) 카카오 응답 원본 전체 (gzip, 대시보드는 안 읽음)
 - data/index.json                     : 카테고리 목록, 카테고리별 월 목록, 처음/마지막 수집 시각
 
 사용법: python scripts/collect.py [--size 100] [--out data] [--cat CHILD ...]
 """
 import argparse
+import gzip
 import json
 import os
 import sys
@@ -239,6 +241,20 @@ def slot_of(dt):
     return None
 
 
+def save_raw(out, t_iso, raw, force=False):
+    """하루 한 번(23시 슬롯) 카카오 응답 원본 전체를 gzip으로 보관한다. 같은 날 파일이 있으면 덮어쓴다."""
+    slot = slot_of(datetime.fromisoformat(t_iso))
+    if not raw or not (force or (slot and slot[1] == 23)):
+        return
+    day = slot[0] if slot else t_iso[:10]
+    path = os.path.join(out, "raw", f"{day}.json.gz")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    body = json.dumps({"t": t_iso, "responses": raw}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    with gzip.GzipFile(path, "wb", mtime=0) as f:   # mtime=0: 내용이 같으면 파일도 같게
+        f.write(body)
+    print(f"응답 원본 저장: {path} ({os.path.getsize(path) // 1024}KB)")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--size", type=int, default=100)
@@ -248,6 +264,8 @@ def main():
     ap.add_argument("--hourly-test", action="store_true")
     # 정기 수집용: 수집 시각 창 밖이거나, 그 슬롯이 이미 저장돼 있으면(본 수집이 끝난 뒤의 백업 등) 저장하지 않는다
     ap.add_argument("--skip-if-saved", action="store_true")
+    # 23시 수집이 아니어도 응답 원본을 저장 (수동 테스트용)
+    ap.add_argument("--raw", action="store_true")
     args = ap.parse_args()
 
     targets = [c for c in CATEGORIES if not args.cat or c["key"] in args.cat]
@@ -272,9 +290,11 @@ def main():
     t_iso = datetime.now(KST).isoformat(timespec="seconds")
     failed = []
     mx_cache = {}
+    raw = {}
     for c in targets:
         try:
             data = fetch(c["key"], args.size)
+            raw[c["key"]] = data
             picked = [pick(p) for p in data.get("products", [])]
             if not picked:
                 raise RuntimeError("상품이 0개 (API 응답 형식이 바뀌었을 수 있음)")
@@ -287,6 +307,7 @@ def main():
             failed.append(c["key"])
             print(f"::warning::{c['name']} 실패: {e}")
     rebuild_index(args.out)
+    save_raw(args.out, t_iso, raw, args.raw)
     if args.hourly_test:
         try:
             data = fetch("ALL", args.size, period="HOURLY")

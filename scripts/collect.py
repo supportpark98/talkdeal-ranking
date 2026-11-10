@@ -159,16 +159,24 @@ def write_json(path, obj):
     os.replace(tmp, path)
 
 
-def save_snapshot(out, cat, t_iso, agg, rows, metas):
-    """한 카테고리의 한 시점을 월별 파일에 덧붙이고 상품 정보를 갱신한다."""
+def save_snapshot(out, cat, t_iso, agg, rows, metas, anomaly=False):
+    """한 카테고리의 한 시점을 월별 파일에 덧붙이고 상품 정보를 갱신한다.
+    anomaly=True: 재시도해도 카카오 집계가 이상한 수집분. 받은 그대로 저장하고 표시만 해 두면,
+    다음 정상 수집 때 fill_anomalies가 빠진 상품을 앞뒤 수집의 시간 비율로 채운다."""
     month = t_iso[:7]
     mpath = os.path.join(out, "monthly", cat, f"{month}.json")
     monthly = read_json(mpath, {"cols": COLS, "snaps": []})
     if monthly.get("cols") != COLS:
         raise RuntimeError(f"{mpath}의 열 구성이 다릅니다")
     monthly["snaps"] = [s for s in monthly["snaps"] if s["t"] != t_iso]
-    monthly["snaps"].append({"t": t_iso, "agg": agg, "rows": [[r.get(c) for c in COLS] for r in rows]})
+    snap = {"t": t_iso, "agg": agg, "rows": [[r.get(c) for c in COLS] for r in rows]}
+    if anomaly:
+        snap["anomaly"] = True
+    monthly["snaps"].append(snap)
     monthly["snaps"].sort(key=lambda s: s["t"])
+    if not anomaly:
+        for line in fill_anomalies(monthly):
+            print(f"{cat}: {line}")
     write_json(mpath, monthly)
 
     ppath = os.path.join(out, "products", f"{month}.json")
@@ -195,6 +203,57 @@ def record_history(out, month, metas, t_iso):
             changed = True
     if changed:
         write_json(hpath, hist)
+
+
+def fill_anomalies(monthly):
+    """집계 이상 수집분(anomaly, 아직 안 채운 것)마다, 바로 앞·뒤 정상 수집에 둘 다 있고 이상 수집분에만 빠진 상품을 채운다.
+    - 받은 상품 값은 그대로 두고 빠진 상품만 추가한다.
+    - 그 시각에 딜이 이미 끝났거나(dealEnd 지남) 앞뒤 딜이 서로 다른 딜(dealStart 다름)이면 채우지 않는다 (끝난 딜을 살리지 않음).
+    - 주문수·누적판매수·순위는 앞뒤 값을 시간 비율로, 나머지 값은 시간상 가까운 쪽 값으로 넣는다.
+    - 순위는 채운 상품을 끼워 넣은 뒤 1위부터 다시 매긴다."""
+    cols = monthly["cols"]
+    ix = {c: i for i, c in enumerate(cols)}
+    snaps = monthly["snaps"]
+    ts = lambda s: datetime.fromisoformat(s["t"]).timestamp()
+    done = []
+    for k, sn in enumerate(snaps):
+        if not sn.get("anomaly") or "filled" in sn:
+            continue
+        prev = next((s for s in reversed(snaps[:k]) if not s.get("anomaly")), None)
+        nxt = next((s for s in snaps[k + 1:] if not s.get("anomaly")), None)
+        if not prev or not nxt:
+            continue
+        frac = (ts(sn) - ts(prev)) / (ts(nxt) - ts(prev))
+        now_key = datetime.fromisoformat(sn["t"]).strftime("%Y%m%d%H%M%S")
+        have = {r[ix["productId"]] for r in sn["rows"]}
+        after = {r[ix["productId"]]: r for r in nxt["rows"]}
+        add = []
+        for a in prev["rows"]:
+            pid = a[ix["productId"]]
+            b = after.get(pid)
+            if pid in have or b is None:
+                continue
+            end = b[ix["dealEnd"]] or a[ix["dealEnd"]]
+            if not end or end <= now_key or a[ix["dealStart"]] != b[ix["dealStart"]]:
+                continue
+            row = list(a if frac < 0.5 else b)
+            for c in ("ordering", "totalSaleCount", "rank"):
+                if a[ix[c]] is not None and b[ix[c]] is not None:
+                    row[ix[c]] = round(a[ix[c]] + (b[ix[c]] - a[ix[c]]) * frac, 1 if c == "rank" else 0)
+                    if c != "rank":
+                        row[ix[c]] = int(row[ix[c]])
+            add.append(row)
+        # 받은 상품은 받은 순위, 채운 상품은 보간 순위로 줄 세운 뒤(같으면 받은 상품 먼저) 1위부터 다시 매긴다
+        merged = sorted([(r[ix["rank"]], 0, r) for r in sn["rows"]] + [(r[ix["rank"]], 1, r) for r in add],
+                        key=lambda x: (x[0] if x[0] is not None else 1e9, x[1]))
+        sn["rows"] = []
+        for n, (_, _, r) in enumerate(merged, 1):
+            r[ix["rank"]] = n
+            sn["rows"].append(r)
+        sn["filled"] = [r[ix["productId"]] for r in add]
+        sn["fillFrom"] = [prev["t"], nxt["t"]]
+        done.append(f"{sn['t'][:16]} 집계 이상분에 빠진 상품 {len(add)}개를 {prev['t'][11:16]}~{nxt['t'][11:16]} 시간 비율로 채움")
+    return done
 
 
 def rebuild_index(out):
@@ -271,6 +330,26 @@ def looks_broken(out, cat, rows, now_key):
     return len(gone) >= 5
 
 
+# 집계 이상이면 5분, 10분, 15분 뒤에 다시 받는다 (그래도 이상하면 받은 그대로 저장하고 다음 정상 수집 때 채움)
+RETRY_MIN = (5, 10, 15)
+
+
+def fetch_all(targets, size):
+    raw = {}
+    for c in targets:
+        try:
+            raw[c["key"]] = fetch(c["key"], size)
+        except Exception as e:  # noqa: BLE001
+            print(f"::warning::{c['name']} 받기 실패: {e}")
+    return raw
+
+
+def broken_cats(out, targets, raw):
+    now_key = datetime.now(KST).strftime("%Y%m%d%H%M%S")
+    return [c["name"] for c in targets if c["key"] in raw and
+            looks_broken(out, c["key"], [pick(p)[0] for p in raw[c["key"]].get("products", [])], now_key)]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--size", type=int, default=100)
@@ -303,23 +382,24 @@ def main():
         if not agg.startswith(want):
             print(f"집계 {agg}가 {slot[0]} {slot[1]}시 기준이 아니라 건너뜀")
             return
-    t_iso = datetime.now(KST).isoformat(timespec="seconds")
     failed = []
     mx_cache = {}
-    raw = {}
-    # 먼저 전부 받아 두고, 카카오 집계가 이상해 보이면(진행 중인 상위 딜이 대거 사라짐) 이번 실행은 통째로 저장하지 않는다
-    for c in targets:
-        try:
-            raw[c["key"]] = fetch(c["key"], args.size)
-        except Exception as e:  # noqa: BLE001
-            print(f"::warning::{c['name']} 받기 실패: {e}")
+    # 먼저 전부 받아 두고, 카카오 집계가 이상해 보이면(진행 중인 상위 딜이 대거 사라짐) 5·10·15분 뒤에 다시 받는다
+    raw = fetch_all(targets, args.size)
+    anomaly = False
     if args.skip_if_saved:
-        now_key = datetime.now(KST).strftime("%Y%m%d%H%M%S")
-        broken = [c["name"] for c in targets if c["key"] in raw and
-                  looks_broken(args.out, c["key"], [pick(p)[0] for p in raw[c["key"]].get("products", [])], now_key)]
+        broken = broken_cats(args.out, targets, raw)
+        for wait in RETRY_MIN:
+            if not broken:
+                break
+            print(f"::warning::{', '.join(broken)}: 진행 중인 상위 딜이 5개 이상 랭킹에서 사라짐. {wait}분 뒤 다시 받음")
+            time.sleep(wait * 60)
+            raw = fetch_all(targets, args.size)
+            broken = broken_cats(args.out, targets, raw)
         if broken:
-            print(f"::warning::{', '.join(broken)}: 진행 중인 상위 딜이 5개 이상 랭킹에서 사라짐. 카카오 집계 이상으로 보고 저장하지 않음 (백업 수집에서 다시 시도)")
-            return
+            anomaly = True
+            print(f"::warning::{', '.join(broken)}: 다시 받아도 집계 이상. 받은 그대로 저장하고 다음 정상 수집 때 빠진 상품을 채움")
+    t_iso = datetime.now(KST).isoformat(timespec="seconds")
     for c in targets:
         try:
             if c["key"] not in raw:
@@ -331,7 +411,7 @@ def main():
             rows = [r for r, _ in picked]
             metas = {str(r["productId"]): m for r, m in picked}
             filled = fill_max_benefit(rows, mx_cache)
-            save_snapshot(args.out, c["key"], t_iso, data.get("aggregatedAt"), rows, metas)
+            save_snapshot(args.out, c["key"], t_iso, data.get("aggregatedAt"), rows, metas, anomaly)
             print(f"{c['name']}: {len(rows)}개 (집계 {data.get('aggregatedAt')}, 최대혜택가 보충 {filled}개)")
         except Exception as e:  # noqa: BLE001
             failed.append(c["key"])

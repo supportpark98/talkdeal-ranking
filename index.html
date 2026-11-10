@@ -104,6 +104,7 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .lrow{display:flex;gap:8px;flex-wrap:wrap}
 .toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
+.anote:empty{display:none}
 .chartbar{align-items:center;margin-top:6px}
 .chartbar .hint{margin:0 auto 0 0}
 .tablewrap{overflow-x:auto}
@@ -204,6 +205,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <label class="chk" id="sumWrap"><input type="checkbox" id="sum"> 검색어별로 합쳐 보기</label>
       <label class="chk" id="top10Wrap"><input type="checkbox" id="top10" checked> TOP 10만 표시</label>
     </div>
+    <div class="hint anote" id="chartNote"></div>
     <div class="chartbox"><canvas id="chart"></canvas></div>
   </section>
 
@@ -212,6 +214,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <button id="xlsx">엑셀 다운로드</button>
     </h2>
     <div class="hint" id="cmp"></div>
+    <div class="hint anote" id="rankNote"></div>
     <div class="tablewrap">
       <table id="rank-table">
         <colgroup id="cols">
@@ -387,7 +390,7 @@ async function ensureMonths(s, e){
   await Promise.all(needP.map(async mk => { Object.assign(S.products, await getJSON(`data/products/${mk}.json`)); S.prodLoaded[mk] = true; }));
   await Promise.all(need.map(async k => {
     const j = await getJSON(`data/monthly/${k}.json`);
-    S.months[k] = j.snaps.map(sn => ({t: Date.parse(sn.t), agg: sn.agg, filledFrom: sn.filledFrom, rows: sn.rows.map(r => {
+    S.months[k] = j.snaps.map(sn => ({t: Date.parse(sn.t), agg: sn.agg, anomaly: sn.anomaly, filled: sn.filled, fillFrom: sn.fillFrom, rows: sn.rows.map(r => {
       const o = {}; j.cols.forEach((c,i)=>o[c]=r[i]);
       return o;
     })}));
@@ -430,7 +433,7 @@ async function update(){
   if(!S.inRange.length){
     $('#rangeinfo').textContent = '선택한 기간에 수집된 데이터가 없어요.';
     $('#rows').innerHTML = '<tr><td colspan="12" class="empty">선택한 기간에 수집된 데이터가 없어요</td></tr>';
-    $('#tiles').innerHTML = ''; $('#cmp').textContent = ''; S.cur = null; drawChart(); return;
+    $('#tiles').innerHTML = ''; $('#cmp').textContent = ''; $('#chartNote').textContent = ''; $('#rankNote').textContent = ''; S.cur = null; drawChart(); return;
   }
   S.cur = S.inRange[S.inRange.length-1];
   S.base = S.inRange.length > 1 ? S.inRange[0] : [...S.snaps].reverse().find(s => s.t < S.cur.t) || null;
@@ -450,9 +453,12 @@ async function update(){
     r.dSales = b && r.sales!=null && b.sales!=null ? r.sales - b.sales : null;
   });
   $('#basis').textContent = `${S.cat.name} · 마지막 수집 ${slotLab(S.index.lastMs)}`;
-  // 카카오 집계 이상으로 다른 시각 값을 대신 넣은 수집분이 기간 안에 있으면 알려 준다
-  { const f = S.inRange.filter(x => x.filledFrom);
-    $('#rangeinfo').textContent = f.map(x => `*${slotLab(x.t)} 데이터는 카카오 집계 오류로 ${slotLab(Date.parse(x.filledFrom))} 값을 대신 넣었어요.`).join(' '); }
+  $('#rangeinfo').textContent = '';
+  // 카카오 집계 오류가 있었던 수집분이 기간 안에 있을 때만 추이·랭킹에 회색 안내
+  { const note = S.inRange.filter(x => x.anomaly).map(x => x.filled
+      ? `*${slotLab(x.t)} 데이터는 카카오 집계 오류로 빠진 상품 ${x.filled.length}개를 ${((a, b) => a.split(' ')[0] === b.split(' ')[0] ? a.split(' ')[1] + '~' + b.split(' ')[1] : a + '~' + b)(slotLab(Date.parse(x.fillFrom[0])), slotLab(Date.parse(x.fillFrom[1])))} 값의 시간 비율로 채웠어요.`
+      : `*${slotLab(x.t)} 데이터는 카카오 집계 오류로 일부 상품이 빠져 있어요. 다음 수집 후 시간 비율로 채워져요.`).join(' ');
+    $('#chartNote').textContent = note; $('#rankNote').textContent = note; }
   $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `*변동은 기간 시작(${slotLab(S.base.t)}) 대비, 표는 종료(${slotLab(S.cur.t)}) 기준` : `*변동은 직전 수집(${slotLab(S.base.t)}) 대비`;
   if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
     S.picked = S.cur.rows.slice(0,DEFPICK).map(r=>String(r.productId));

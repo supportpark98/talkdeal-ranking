@@ -182,7 +182,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
       <span class="grp"><span class="lbl">카테고리</span><span class="msel" id="csub"><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden></div></span></span></span>
         <span class="qnote">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</span></span>
-      <span class="qwrap"><span class="grp qrow"><span class="lbl">검색</span><input id="cq" type="search" placeholder="스토어명 또는 키워드 검색"></span><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
+      <span class="qwrap"><span class="grp qrow"><span class="lbl">검색</span><input id="cq" type="search" placeholder="스토어명, 키워드 또는 상품코드 검색"></span><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
     <div class="rangeinfo" id="rangeinfo"></div>
   </section>
@@ -492,7 +492,7 @@ async function update(){
 function tiles(){
   // 위쪽 세부 카테고리·검색 필터를 함께 적용
   const ts = terms($('#cq').value), dl = !!$('#deal').value;
-  const rs = S.cur.rows.filter(r => (!ts.length || hit(((r.name||'')+' '+(r.brand||'')).toLowerCase(), ts)) && catOk(r.category) && (!dl || r.ordering != null)), top = rs[0];
+  const rs = S.cur.rows.filter(r => (!ts.length || hit(((r.name||'')+' '+(r.brand||'')+' '+r.productId).toLowerCase(), ts)) && catOk(r.category) && (!dl || r.ordering != null)), top = rs[0];
   if(!top){ $('#tiles').innerHTML = '<div class="tile"><div class="k">요약</div><div class="v">-</div><div class="d">조건에 맞는 상품이 없어요</div></div>'; return; }
   // 브랜드별 상품 수 / 추정매출 합계 (같으면 더 높은 순위의 브랜드 먼저)
   const B = new Map();
@@ -571,7 +571,7 @@ function setupCatMenu(onChange){
 }
 function tableRows(){
   const ts = terms($('#cq').value), f = 'all';
-  let rs = S.cur.rows.filter(r => !ts.length || hit(((r.name||'')+' '+(r.brand||'')).toLowerCase(), ts));
+  let rs = S.cur.rows.filter(r => !ts.length || hit(((r.name||'')+' '+(r.brand||'')+' '+r.productId).toLowerCase(), ts));
   if($('#deal').value) rs = rs.filter(r => r.ordering != null);
   if(S.csub.length) rs = rs.filter(r=>catOk(r.category));
   if(f==='up') rs = rs.filter(r=>r.chg>0 && r.chg!==999);
@@ -703,7 +703,7 @@ function drawChart(){
   let ids, datasets;
   if(q){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
-    const txt = id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')).toLowerCase(); };
+    const txt = id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')+' '+id).toLowerCase(); };
     const match = [...seen].filter(id => (!ts.length || hit(txt(id), ts)) && catOk(product(id).category) && (!dealOnly || S.inRange.some(s => s.rows.some(r => String(r.productId) === id && r.ordering != null))));
     S.matchIds = new Set(match);
     // 종료 시점 순위가 높은 순. 종료 시점에 랭킹에 없던 상품은 그 뒤에, 마지막으로 보인 시점이 늦고 순위가 높은 순

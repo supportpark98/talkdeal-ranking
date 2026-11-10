@@ -400,14 +400,20 @@ async function ensureMonths(s, e){
 }
 // 추정매출은 수집마다 '늘어난 주문수 × 그때 톡딜가'를 더해 간다 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로).
 // 처음 보이는 시점에는 그때까지 쌓인 주문 전체를 그때 가격으로 계산하고, 주문수가 줄면(새 딜) 처음부터 다시 쌓는다.
+// 추정매출: 수집마다 (늘어난 주문수 × 그때 톡딜가)를 더한다.
+// 행사 구분은 딜 오픈일자 기준. 오픈일자가 바뀌면 새 행사로 보고 0부터 다시 쌓는다.
+// 같은 행사 안에서 주문수가 줄면(옵션 변경 초기화, 취소 등) 매출은 그대로 두고 줄어든 수를 새 기준으로 삼는다.
+// 오픈일자가 없는 옛 데이터는 예전처럼 주문수가 줄면 새 행사로 본다.
 function accumulateSales(snaps){
   const st = new Map();
   snaps.forEach(sn => sn.rows.forEach(o => {
     const price = o.price;
     if(price == null || o.ordering == null){ o.sales = null; return; }
     const k = String(o.productId), p = st.get(k);
-    const acc = !p || o.ordering < p.ord ? price * o.ordering : p.acc + (o.ordering - p.ord) * price;
-    st.set(k, {ord: o.ordering, acc}); o.sales = acc;
+    const known = p && p.start && o.dealStart;
+    const isNew = !p || (known ? p.start !== o.dealStart : o.ordering < p.ord);
+    const acc = isNew ? price * o.ordering : p.acc + Math.max(0, o.ordering - p.ord) * price;
+    st.set(k, {ord: o.ordering, acc, start: o.dealStart}); o.sales = acc;
   }));
 }
 

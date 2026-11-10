@@ -43,6 +43,8 @@ COLS = [
     "rank", "productId", "price", "discountRate", "ordering",
     "originalPrice", "maxBenefitPrice", "totalSaleCount", "reviewCount", "satisfaction", "label",
     "liveStartAt",
+    # 톡딜 기간 (YYYYMMDDHHMMSS). 같은 상품이라도 오픈일자가 바뀌면 새 행사로 본다
+    "dealStart", "dealEnd",
 ]
 
 
@@ -121,6 +123,8 @@ def pick(p):
         "label": p.get("label"),
         # 라이브 방송 시작 시각 (YYYYMMDDHHMMSS). 라이브가 없으면 None
         "liveStartAt": p.get("liveStartAt"),
+        "dealStart": (p.get("groupDiscountPeriod") or {}).get("from") if on_deal else None,
+        "dealEnd": (p.get("groupDiscountPeriod") or {}).get("to") if on_deal else None,
     }
     meta = {
         "name": p.get("productName"),

@@ -255,6 +255,22 @@ def save_raw(out, t_iso, raw, force=False):
     print(f"응답 원본 저장: {path} ({os.path.getsize(path) // 1024}KB)")
 
 
+def looks_broken(out, cat, rows, now_key):
+    """직전 수집의 상위 20개 중 아직 딜이 진행 중인(종료 전) 상품이 5개 이상 이번 100위 안에서 통째로 사라졌으면
+    카카오 집계 이상으로 본다. (11/10 16시 집계에서 4개 카테고리 모두 상위 딜이 한꺼번에 빠졌다가 다음 수집에 돌아온 적이 있음)"""
+    d = os.path.join(out, "monthly", cat)
+    months = sorted(n for n in os.listdir(d) if n.endswith(".json")) if os.path.isdir(d) else []
+    if not months:
+        return False
+    m = read_json(os.path.join(d, months[-1]), {})
+    if not m.get("snaps") or "dealEnd" not in m.get("cols", []):
+        return False
+    cols = m["cols"]; pi = cols.index("productId"); ei = cols.index("dealEnd")
+    now_ids = {r["productId"] for r in rows}
+    gone = [r[pi] for r in m["snaps"][-1]["rows"][:20] if r[ei] and r[ei] > now_key and r[pi] not in now_ids]
+    return len(gone) >= 5
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--size", type=int, default=100)
@@ -291,10 +307,24 @@ def main():
     failed = []
     mx_cache = {}
     raw = {}
+    # 먼저 전부 받아 두고, 카카오 집계가 이상해 보이면(진행 중인 상위 딜이 대거 사라짐) 이번 실행은 통째로 저장하지 않는다
     for c in targets:
         try:
-            data = fetch(c["key"], args.size)
-            raw[c["key"]] = data
+            raw[c["key"]] = fetch(c["key"], args.size)
+        except Exception as e:  # noqa: BLE001
+            print(f"::warning::{c['name']} 받기 실패: {e}")
+    if args.skip_if_saved:
+        now_key = datetime.now(KST).strftime("%Y%m%d%H%M%S")
+        broken = [c["name"] for c in targets if c["key"] in raw and
+                  looks_broken(args.out, c["key"], [pick(p)[0] for p in raw[c["key"]].get("products", [])], now_key)]
+        if broken:
+            print(f"::warning::{', '.join(broken)}: 진행 중인 상위 딜이 5개 이상 랭킹에서 사라짐. 카카오 집계 이상으로 보고 저장하지 않음 (백업 수집에서 다시 시도)")
+            return
+    for c in targets:
+        try:
+            if c["key"] not in raw:
+                raise RuntimeError("응답 없음")
+            data = raw[c["key"]]
             picked = [pick(p) for p in data.get("products", [])]
             if not picked:
                 raise RuntimeError("상품이 0개 (API 응답 형식이 바뀌었을 수 있음)")

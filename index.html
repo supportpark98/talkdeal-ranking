@@ -263,7 +263,7 @@ const COLORS = ['#e5484d','#2f6fde','#12a150','#f5a524','#8e4ec6','#0ea5a4','#d6
 const DAY = 864e5, KST = 9*36e5;
 const METRIC = {rank:'순위', sales:'추정매출', ordering:'주문수'};
 
-const S = {csub:[], index:null, cat:null, products:{}, prodLoaded:{}, months:{}, snaps:[], inRange:[], cur:null, base:null,
+const S = {csub:[], index:null, cat:null, products:{}, prodLoaded:{}, changes:{}, months:{}, snaps:[], inRange:[], cur:null, base:null,
   start:0, end:0, metric:'rank', gran:'hour', sort:{k:'rank',dir:1}, picked:[], chart:null};
 
 // ---- 시간 도우미 (모든 표시는 한국 시간) ----
@@ -400,7 +400,13 @@ async function ensureMonths(s, e){
     if(S.cat.months.includes(mk) && !S.months[key]) need.push(key);
     if(S.index.productMonths.includes(mk) && !S.prodLoaded[mk]) needP.push(mk);
   }
-  await Promise.all(needP.map(async mk => { Object.assign(S.products, await getJSON(`data/products/${mk}.json`)); S.prodLoaded[mk] = true; }));
+  await Promise.all(needP.map(async mk => {
+    // 최신 상품 정보 + 그 달에 정보가 바뀐 상품의 변경 이력(과거 기간은 그 시점 값으로 보여 주기 위함)
+    const [p, ch] = await Promise.all([getJSON(`data/products/${mk}.json`), getJSON(`data/product_changes/${mk}.json`).catch(() => ({}))]);
+    Object.assign(S.products, p);
+    for(const [id, h] of Object.entries(ch || {})) S.changes[id] = (S.changes[id] || []).concat(h.map(x => ({...x, t: Date.parse(x.t)}))).sort((a, b) => a.t - b.t);
+    S.prodLoaded[mk] = true;
+  }));
   await Promise.all(need.map(async k => {
     const j = await getJSON(`data/monthly/${k}.json`);
     S.months[k] = j.snaps.map(sn => ({t: Date.parse(sn.t), agg: sn.agg, anomaly: sn.anomaly, filled: sn.filled, fillFrom: sn.fillFrom, rows: sn.rows.map(r => {
@@ -433,7 +439,13 @@ function accumulateSales(snaps){
   }));
 }
 
-function product(id){ return S.products[id] || {}; }
+// 상품 정보: 조회 기간 종료 시점(S.end) 기준 값. 그 뒤에 이름·이미지 등이 바뀐 상품은 그때 값을 쓴다
+function product(id){
+  const p = S.products[id] || {}, h = S.changes[id];
+  if(!h || !S.end) return p;
+  let e = h[0]; for(const x of h){ if(x.t <= S.end) e = x; else break; }
+  const {t, ...v} = e; return {...p, ...v};
+}
 
 async function update(){
   await ensureMonths(S.start, S.end);

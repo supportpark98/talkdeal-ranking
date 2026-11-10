@@ -187,7 +187,9 @@ def save_snapshot(out, cat, t_iso, agg, rows, metas, anomaly=False):
 
 
 # 상품 정보 변경 이력: data/product_history/YYYY-MM.json = {상품코드: [{"t": 바뀐 수집 시각, ...그때 값}, ...]}
-# 아래 값 중 하나라도 직전 기록과 달라질 때만 한 줄 덧붙인다. 대시보드는 이 파일을 읽지 않는다(용량 절약).
+# 아래 값 중 하나라도 직전 기록과 달라질 때만 한 줄 덧붙인다.
+# 대시보드는 이 중 실제로 한 번 이상 바뀐 상품만 모은 data/product_changes/YYYY-MM.json(작음)을 읽어서
+# 과거 기간을 볼 때 그 시점 상품명·이미지 등을 보여 준다.
 HIST_KEYS = ("name", "brand", "category", "url", "image", "brandStore", "freeDelivery")
 
 
@@ -203,6 +205,7 @@ def record_history(out, month, metas, t_iso):
             changed = True
     if changed:
         write_json(hpath, hist)
+        write_json(os.path.join(out, "product_changes", f"{month}.json"), {k: v for k, v in hist.items() if len(v) > 1})
 
 
 def fill_anomalies(monthly):

@@ -493,16 +493,26 @@ async function update(){
     r.liveMs = ymd(r.liveStartAt);
     r.baseRank = b ? b.rank : null;
     r.chg = !S.base ? 0 : b ? b.rank - r.rank : 999;  // 999 = 신규
-    // 끝난 딜(마지막 딜 값으로 채운 줄)은 증감을 표시하지 않는다
-    r.dOrdering = !r.endedAt && b && r.ordering!=null && b.ordering!=null ? r.ordering - b.ordering : null;
-    r.dSales = !r.endedAt && b && r.sales!=null && b.sales!=null ? r.sales - b.sales : null;
+    // 주문수·추정매출 증감 기준: 조회 시작 시점과 딜 오픈 시점 중 늦은 쪽
+    //  - 기간 시작 때 같은 딜이 있었으면 그 값 대비
+    //  - 기간 중에 오픈한 딜(새로 다시 열린 딜 포함)은 0부터 = 현재 누적값
+    //  - 기간 전에 열렸지만 시작 때 순위 밖이었으면, 기간 중 처음 잡힌 같은 딜 값 대비
+    //  - 끝난 딜(마지막 딜 값으로 채운 줄)은 증감 표시 안 함
+    let ref = null;
+    if(!r.endedAt && r.ordering != null && S.base){
+      if(b && b.ordering != null && b.dealStart === r.dealStart) ref = b;
+      else if(r.dealStartMs && r.dealStartMs > S.base.t) ref = {ordering: 0, sales: 0};
+      else for(const sn of S.inRange){ if(sn.t >= S.cur.t) break; const o = sn.rows.find(x => x.productId === r.productId && x.ordering != null && x.dealStart === r.dealStart); if(o){ ref = o; break; } }
+    }
+    r.dOrdering = ref && ref.ordering != null ? r.ordering - ref.ordering : null;
+    r.dSales = ref && r.sales != null && ref.sales != null ? r.sales - ref.sales : null;
   });
   $('#basis').textContent = `${S.cat.name} · 마지막 수집 ${slotLab(S.index.lastMs)}`;
   $('#rangeinfo').textContent = '';
   // 카카오 집계 오류가 있었던 수집분이 기간 안에 있을 때만 추이·랭킹에 회색 안내
   { const note = anomalyNote(S.inRange.filter(x => x.anomaly));
     $('#chartNote').textContent = note; }
-  $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `*변동은 기간 시작(${slotLab(S.base.t)}) 대비, 표는 종료(${slotLab(S.cur.t)}) 기준` : `*변동은 직전 수집(${slotLab(S.base.t)}) 대비`;
+  $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `*변동은 기간 시작(${slotLab(S.base.t)}) 대비 (기간 중 오픈한 딜의 추정매출·주문수는 오픈 이후), 표는 종료(${slotLab(S.cur.t)}) 기준` : `*변동은 직전 수집(${slotLab(S.base.t)}) 대비`;
   if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
     S.picked = S.cur.rows.slice(0,DEFPICK).map(r=>String(r.productId));
   tiles(); drawChart(); render();   // 추이에 표시할 상품(S.shown)을 먼저 정한 뒤 표에 노란 표시

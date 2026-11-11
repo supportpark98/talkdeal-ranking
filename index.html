@@ -48,6 +48,7 @@ button{padding:6px 12px;border:1px solid var(--line);border-radius:8px;backgroun
 button:hover{border-color:var(--muted)}
 button.on{background:var(--text);color:var(--card);border-color:var(--text)}
 button:disabled{opacity:.5;cursor:default}
+.hbtns{display:flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:flex-end}
 button.textbtn{border:none;background:none;color:var(--muted);font-size:12px;padding:4px 6px;margin-left:4px}
 button.textbtn:hover{color:var(--text);text-decoration:underline}
 .seg{display:inline-flex;gap:0}
@@ -211,7 +212,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     <div class="toolbar chartbar">
       <div class="hint" id="chartHint"></div>
       <label class="chk" id="sumWrap"><input type="checkbox" id="sum"> 검색어별로 합쳐 보기</label>
-      <label class="chk" id="top10Wrap"><input type="checkbox" id="top10" checked> TOP 10만 표시</label>
+      <label class="chk" id="top10Wrap"><input type="checkbox" id="top10"> TOP 10만 표시</label>
       <label class="chk" id="liveWrap"><input type="checkbox" id="liveChk"> 라이브 표시</label>
     </div>
     <div class="hint anote" id="liveNote"></div>
@@ -220,7 +221,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
 
   <section class="card">
     <h2><span>랭킹</span>
-      <button id="xlsx">엑셀 다운로드</button>
+      <span class="hbtns"><button id="pick10" class="textbtn" type="button">상위 10개 선택</button><button id="pickNone" class="textbtn" type="button">선택 해제</button><button id="xlsx">엑셀 다운로드</button></span>
     </h2>
     <div class="hint" id="cmp"></div>
     <div class="tablewrap">
@@ -666,7 +667,7 @@ function render(){
     if(e.target.closest('a')) return;
     const id = tr.dataset.id;
     let L = S.picked;
-    if(S.filterOn){ if(!S.fpicked.length) S.fpicked = (S.shown || []).slice(); L = S.fpicked; }
+    if(S.filterOn){ if(!S.fpicked.length) S.fpicked = (S.shown || []).slice(); L = S.fpicked; S.fnone = false; }
     const i = L.indexOf(id);
     if(i>=0) L.splice(i,1); else { if(L.length>=MAXPICK){ toast(`최대 ${MAXPICK}개까지만 선택할 수 있어요`); return; } L.push(id); }
     drawChart(); render();   // 추이가 표시 상품(S.shown)을 먼저 바꾼 뒤 표에 노란 표시 (순서가 반대면 한 박자 늦게 반영됨)
@@ -801,7 +802,7 @@ function drawChart(){
   const csub = S.csub.join(', '), dealOnly = !!$('#deal').value, q = ts.length > 0 || !!csub || dealOnly;
   S.filterOn = q; if(!q) S.matchIds = new Set();
   // 검색 조건이 바뀌면 조건 안에서 고른 상품은 초기화
-  const fkey = ts.join(',') + '|' + csub + '|' + dealOnly; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; }
+  const fkey = ts.join(',') + '|' + csub + '|' + dealOnly; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; S.fnone = false; }
   const sumMode = $('#sum').checked && !!q;
   $('#sum').disabled = !q;
   // 순위 모드에서는 'TOP 10만 표시'(기본 켜짐), 추정매출/주문수 모드에서는 '검색어별로 합쳐 보기'
@@ -863,7 +864,7 @@ function drawChart(){
       const pool = top10 ? match.filter(id => bs.some(b => { const r = b.map.get(id); return r && r.rank <= 10; })) : match;
       // 고른 게 없으면 검색 후 랭킹 표에 보이는 순서대로 상위 5개 (표에서 그 5개가 선택 표시됨). 표에 없으면 기존 방식
       const inTbl = S.cur ? tableRows().map(r => String(r.productId)).filter(id => S.matchIds.has(id)) : [];
-      ids = mine.length ? mine : inTbl.length ? inTbl.slice(0,DEFPICK) : pool.slice(0,DEFPICK);
+      ids = mine.length ? mine : S.fnone ? [] : inTbl.length ? inTbl.slice(0,DEFPICK) : pool.slice(0,DEFPICK);
     }
   } else {
     ids = S.picked;
@@ -1067,6 +1068,12 @@ async function init(){
   
   $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart; $('#liveChk').onchange = toggleLive;
   $('#xlsx').onclick = downloadXlsx;
+  // 랭킹 표 위 버튼: 지금 표에 보이는 순서대로 상위 10개 선택 / 모두 선택 해제 (검색 중이면 검색 결과 안에서)
+  const setPick = ids => { if(!S.cur) return;
+    if(S.filterOn){ S.fpicked = ids; S.fnone = !ids.length; } else S.picked = ids;
+    drawChart(); render(); };
+  $('#pick10').onclick = () => setPick(S.cur ? tableRows().slice(0, MAXPICK).map(r => String(r.productId)) : []);
+  $('#pickNone').onclick = () => setPick([]);
   $$('#cols col').forEach(c => c.dataset.w = c.style.width);
   setupResize();
   $$('th[data-k]').forEach(th => th.onclick = () => {

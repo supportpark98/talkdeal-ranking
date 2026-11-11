@@ -29,7 +29,7 @@ h1 .logo{flex:none;border-radius:6px}
 .tabs button:hover{background:rgba(0,0,0,.12);border:none}
 .tabs button.on{background:var(--bg);color:var(--text)}
 .tag{display:inline-block;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:4px;vertical-align:1px}
-.tag.rise{background:#fde8e8;color:#c8323a} .tag.live{background:#e5484d;color:#fff}
+.tag.rise{background:#fde8e8;color:#c8323a} .tag.ended{background:var(--line);color:var(--muted)} .tag.live{background:#e5484d;color:#fff}
 .wrap{max-width:1180px;margin:0 auto}
 main{padding:16px}
 /* 맨 위로: PC는 본문 오른쪽 여백, 화면이 좁으면(모바일) 오른쪽 아래에 떠 있게 */
@@ -241,6 +241,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   <span id="since"></span><br>
   추정매출 = 수집할 때마다 늘어난 주문수 × 그때의 톡딜가를 더한 값 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로, 옵션별 가격 차이는 반영되지 않은 추정치)<br>
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
+  딜 종료 = 조회 기간 중 진행됐지만 종료 시점에는 끝난 딜. 딜 정보·추정매출·주문수·가격은 그 딜의 마지막 수집값<br>
   일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
 </footer>
 <button id="toTop" type="button" aria-label="맨 위로" title="맨 위로">↑</button>
@@ -460,7 +461,19 @@ async function update(){
     $('#rows').innerHTML = '<tr><td colspan="13" class="empty">선택한 기간에 수집된 데이터가 없어요</td></tr>';
     $('#tiles').innerHTML = ''; $('#cmp').textContent = ''; $('#chartNote').textContent = ''; S.cur = null; drawChart(); return;
   }
-  S.cur = S.inRange[S.inRange.length-1];
+  // 표는 종료 시점 수집분 기준. 원본 수집 데이터(추이에서 씀)는 건드리지 않게 복사본으로 만든다
+  { const last = S.inRange[S.inRange.length-1];
+    S.cur = {...last, rows: last.rows.map(r => ({...r}))};
+    // 종료 시점엔 딜이 끝나 딜 정보가 비어 있어도, 기간 안에 딜이 진행됐으면 그 딜의 마지막 수집값으로 채운다 (표에 '딜 종료' 표시)
+    const DEAL_KEYS = ['price','discountRate','ordering','originalPrice','maxBenefitPrice','liveStartAt','dealStart','dealEnd','sales'];
+    S.cur.rows.forEach(r => {
+      if(r.ordering != null) return;
+      for(let i = S.inRange.length - 2; i >= 0; i--){
+        const o = S.inRange[i].rows.find(x => x.productId === r.productId && x.ordering != null);
+        if(o){ DEAL_KEYS.forEach(k => r[k] = o[k]); r.endedAt = S.inRange[i].t; break; }
+      }
+    });
+  }
   S.base = S.inRange.length > 1 ? S.inRange[0] : [...S.snaps].reverse().find(s => s.t < S.cur.t) || null;
   const baseMap = new Map((S.base?.rows||[]).map(r=>[r.productId, r]));
   S.cur.rows.forEach(r => {
@@ -469,7 +482,9 @@ async function update(){
     // 오픈·종료일자는 그 수집 시점 값 (종료일이 연장되면 연장된 값)
     r.dealStartMs = ymd(r.dealStart || p.dealStart); r.dealEndMs = ymd(r.dealEnd || p.dealEnd);
     // 딜 운영일수: 딜 시작부터 이 수집 시점까지 (시작 당일 = 1일)
-    r.dealDays = r.dealStartMs && S.cur.t >= r.dealStartMs ? Math.max(1, Math.ceil((S.cur.t - r.dealStartMs) / DAY)) : null;
+    // 끝난 딜은 마지막으로 수집된 시점까지
+    const asOf = r.endedAt || S.cur.t;
+    r.dealDays = r.dealStartMs && asOf >= r.dealStartMs ? Math.max(1, Math.ceil((asOf - r.dealStartMs) / DAY)) : null;
     r.avgOrdering = r.dealDays && r.ordering != null ? r.ordering / r.dealDays : null;
     r.avgSales = r.dealDays && r.sales != null ? r.sales / r.dealDays : null;
     r.liveMs = ymd(r.liveStartAt);
@@ -591,7 +606,7 @@ function render(){
       <td class="rank">${r.rank}</td>
       <td class="chg">${chgHTML(r)}</td>
       <td class="pname"><div class="pwrap"><img class="thumb" loading="lazy" src="${esc(r.image)}" alt="" onerror="this.onerror=null;this.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'">
-        <div class="ptext">${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></div></div></td>
+        <div class="ptext">${r.endedAt?`<span class="tag ended" title="${slotLab(r.endedAt)} 수집값(딜 마지막 값)으로 표시">딜 종료</span>`:''}${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></div></div></td>
       <td>${esc(r.brand)}</td>
       <td class="num bold">${mdLab(r.dealStartMs)}${r.dealDays ? `<span class="delta same">행사 ${r.dealDays}일차</span>` : ''}</td>
       <td class="num bold">${r.dealEndMs ? `${mdLab(r.dealEndMs)}<span class="delta same">${pad(kparts(r.dealEndMs).h)}:${pad(new Date(r.dealEndMs + KST).getUTCMinutes())}</span>` : '-'}</td>

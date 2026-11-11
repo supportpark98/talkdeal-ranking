@@ -185,7 +185,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     <div class="toolbar searchbar">
       <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
       <span class="grp"><span class="lbl">카테고리</span><span class="msel" id="csub"><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden></div></span></span></span>
-        <span class="qnote">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</span></span>
+        <span class="qnote">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</span>
+        <span class="qnote anote" id="chartNote"></span></span>
       <span class="qwrap"><span class="grp qrow"><span class="lbl">검색</span><input id="cq" type="search" placeholder="스토어명, 키워드 또는 상품코드 검색"></span><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
     <div class="rangeinfo" id="rangeinfo"></div>
@@ -210,9 +211,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <label class="chk" id="top10Wrap"><input type="checkbox" id="top10" checked> TOP 10만 표시</label>
       <label class="chk" id="liveWrap"><input type="checkbox" id="liveChk"> 라이브 표시</label>
     </div>
-    <div class="hint anote" id="chartNote"></div>
-    <div class="chartbox"><canvas id="chart"></canvas></div>
     <div class="hint anote" id="liveNote"></div>
+    <div class="chartbox"><canvas id="chart"></canvas></div>
   </section>
 
   <section class="card">
@@ -847,7 +847,7 @@ function drawChart(){
   });
   if(!$('#liveChk').checked) datasets.forEach(d => { d.live = null; });
   const hasOut = datasets.some(d => d.status && d.status.some(Boolean));
-  $('#liveNote').textContent = datasets.some(d => d.live) ? '◎ 라이브 반영 시점 (점을 누르면 라이브 시각과 추정매출이 보입니다)' : '';
+  $('#liveNote').textContent = datasets.some(d => d.live) ? '*◎ 표시는 라이브 반영 시점입니다. (점을 누르면 라이브 시각과 추정매출이 보입니다)' : '';
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
   const cardC = getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff';
   datasets.forEach((d,i) => { const c = COLORS[i%COLORS.length];

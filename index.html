@@ -837,7 +837,9 @@ function drawChart(){
       // TOP 10만 표시면 기간 중 10위 안에 든 적 있는 상품 중에서 고른다 (안 그러면 고른 5개 중 일부가 그래프에서 빠집)
       const mine = S.fpicked;
       const pool = top10 ? match.filter(id => bs.some(b => { const r = b.map.get(id); return r && r.rank <= 10; })) : match;
-      ids = mine.length ? mine : pool.slice(0,DEFPICK);
+      // 고른 게 없으면 검색 후 랭킹 표에 보이는 순서대로 상위 5개 (표에서 그 5개가 선택 표시됨). 표에 없으면 기존 방식
+      const inTbl = S.cur ? tableRows().map(r => String(r.productId)).filter(id => S.matchIds.has(id)) : [];
+      ids = mine.length ? mine : inTbl.length ? inTbl.slice(0,DEFPICK) : pool.slice(0,DEFPICK);
     }
   } else {
     ids = S.picked;

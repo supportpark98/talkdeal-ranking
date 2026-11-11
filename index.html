@@ -210,6 +210,7 @@ tbody tr.sel{background:var(--sel)}
 /* 끝난 딜(마지막 딜 값으로 채운 줄): 검은 글씨를 회색으로. 빨강/파랑 변동 표시는 그대로 */
 #rank-table tr.ended td{color:var(--muted)}
 /* 진행 중인 딜만 보기: 끝난 딜 줄이 서서히 사라지고 / 다시 나타남 */
+#liveNote{white-space:pre-line}
 #rows tr{transition:opacity .3s ease}
 #rows tr.lofade{opacity:0}
 @keyframes loin{from{opacity:0}to{opacity:1}}
@@ -733,7 +734,7 @@ function render(){
       <td class="rank">${r.rank != null ? r.rank : '<span class="outrk">순위권<br>밖</span>'}</td>
       <td class="chg">${chgHTML(r)}</td>
       <td class="pname"><div class="pwrap"><img class="thumb" loading="lazy" src="${esc(r.image)}" alt="" onerror="this.onerror=null;this.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'">
-        <div class="ptext">${r.ordering != null ? '<span class="tag deal" title="톡딜 상품 코드">톡딜</span>' : '<span class="tag gen" title="톡딜이 아닌 일반 상품 코드">일반</span>'}${r.endedAt?(r.outRank && !r.dealOver ? `<span class="tag ended" title="${slotLab(r.endedAt)} 수집값(순위권 안에 있던 마지막 값)으로 표시">순위권 밖</span>` : `<span class="tag ended" title="${slotLab(r.endedAt)} 수집값(딜 마지막 값)으로 표시">딜 종료</span>`):''}${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></div></div></td>
+        <div class="ptext">${r.ordering != null ? '<span class="tag deal" title="톡딜 상품 코드">톡딜</span>' : '<span class="tag gen" title="톡딜이 아닌 일반 상품 코드">일반</span>'}${r.endedAt?(r.outRank && !r.dealOver ? `<span class="tag ended" title="${slotLab(r.endedAt)} 수집값(순위권 안에 있던 마지막 값)으로 표시">순위권 밖</span>` : `<span class="tag ended" title="${slotLab(r.endedAt)} 수집값(딜 마지막 값)으로 표시">종료</span>`):''}${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></div></div></td>
       <td>${esc(r.brand)}</td>
       <td class="num bold">${r.dealStartMs ? `${mdLab(r.dealStartMs)}<span class="delta same">${pad(kparts(r.dealStartMs).h)}:${pad(new Date(r.dealStartMs + KST).getUTCMinutes())}</span>` : '-'}</td>
       <td class="num bold">${r.dealEndMs ? `${mdLab(r.dealEndMs)}<span class="delta same">${pad(kparts(r.dealEndMs).h)}:${pad(new Date(r.dealEndMs + KST).getUTCMinutes())}</span>` : '-'}</td>
@@ -976,13 +977,27 @@ function drawChart(){
     if(sumMode && metric !== 'rank'){
       // 검색어마다 합계 선 하나씩 (예: 브랜드끼리 비교)
       // 끝난 딜도 마지막 값으로 합계에 넣는다 (기간 전체 합계에서 빠지지 않게). carN = 그 시점 합계에 마지막 값으로 들어간 상품 수
-      const sumOf = ms => { const ss = ms.map(series), carN = bs.map((_, i) => ss.filter(x => x.car[i]).length);
-        const data = bs.map((_, i) => { let sum = 0, any = false; ss.forEach(x => { if(x.vals[i] != null){ sum += x.vals[i]; any = true; } }); return any ? sum : null; });
+      const sumOf = ms => { const ss = ms.map(series);
+        // 합계 다시 시작: 묶인 딜이 모두 끝난 구간(회색)을 지나 새 딜 값이 처음 잡힌 칸부터는, 그 뒤에 잡힌 딜만 더한다
+        //  (개별 상품이 새 딜에서 이전 딜과 선을 잇지 않는 것과 같은 규칙). 일부 딜만 끝난 동안은 끝난 딜의 마지막 값을 계속 더함
+        let inc = ss.map(() => true), allCar = false; const incAt = [], brk = [];
+        bs.forEach((_, i) => {
+          const real = ss.map(x => x.vals[i] != null && !x.car[i]);
+          const restart = allCar && real.some(Boolean);
+          if(restart) inc = real.slice(); else real.forEach((v, k) => { if(v) inc[k] = true; });
+          incAt.push(inc.slice()); brk.push(restart);
+          const has = ss.filter((x, k) => inc[k] && x.vals[i] != null);
+          allCar = has.length > 0 && has.every(x => x.car[i]);
+        });
+        const use = (i, f) => ss.filter((x, k) => incAt[i][k] && f(x));
+        const carN = bs.map((_, i) => use(i, x => x.car[i]).length);
+        const data = bs.map((_, i) => { const xs = use(i, x => x.vals[i] != null); return xs.length ? xs.reduce((a, x) => a + x.vals[i], 0) : null; });
         // 라이브 표시: 묶인 상품들의 라이브 반영 시점을 모아서 (한 칸에 여러 상품이면 툴팁에 모두)
-        const live = {}; ms.forEach(id => { const m = liveMarks(id, true); if(m) Object.entries(m).forEach(([k, t]) => (live[k] = live[k] || []).push(t)); });
+        const live = {}; ms.forEach((id, k) => { const m = liveMarks(id, true); if(m) Object.entries(m).forEach(([i, t]) => { if(incAt[i][k]) (live[i] = live[i] || []).push(t); }); });
         // 묶인 상품이 모두 마지막 값을 이어 쓰는 시점(살아 있는 딜이 하나도 없음)은 합계 선도 회색 점선 + 빈 점
-        const car = bs.map((_, i) => { const has = ss.filter(x => x.vals[i] != null); return has.length > 0 && has.every(x => x.car[i]); });
-        return {data, carN, car: car.some(Boolean) ? car : null, live: Object.keys(live).length ? live : null}; };
+        const car = bs.map((_, i) => { const has = use(i, x => x.vals[i] != null); return has.length > 0 && has.every(x => x.car[i]); });
+        return {data, carN, car: car.some(Boolean) ? car : null, brk: brk.some(Boolean) ? brk : null, restart: brk.some(Boolean),
+          live: Object.keys(live).length ? live : null}; };
       datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ...sumOf(ms)}; })
         : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, ...sumOf(match)}];
     } else {
@@ -1023,7 +1038,8 @@ function drawChart(){
   datasets.forEach(d => { d._live = d.live || null; if(!$('#liveChk').checked) d.live = null; });
   S.liveA = 1;
   const hasOut = datasets.some(d => d.status && d.status.some(Boolean));
-  $('#liveNote').textContent = datasets.some(d => d.live) ? '*◎ 표시는 라이브 반영 시점입니다. (점을 누르면 라이브 시각과 추정매출이 보입니다)' : '';
+  $('#liveNote').textContent = [datasets.some(d => d.live) ? '*◎ 표시는 라이브 반영 시점입니다. (점을 누르면 라이브 시각과 추정매출이 보입니다)' : '',
+    datasets.some(d => d.restart) ? '*합계는 묶인 딜이 모두 끝난 뒤 새 딜이 열리면, 새 딜 값부터 다시 셉니다.' : ''].filter(Boolean).join('\n');
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
   const cardC = getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff';
   const kc = S.keepColors; S.keepColors = null; const noAnim = S.noAnim; S.noAnim = false;   // 진행 중인 딜만 보기 토글 직후: 남는 선은 원래 색 그대로
@@ -1132,7 +1148,8 @@ function drawChart(){
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}, filter:(it, data) => !data.datasets[it.datasetIndex]._gone}},
       tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw, st = c.dataset.status && c.dataset.status[c.dataIndex]; const car = c.dataset.car && c.dataset.car[c.dataIndex] ? ' (딜 종료·순위 밖, 마지막 값)' : c.dataset.carN && c.dataset.carN[c.dataIndex] ? ` (종료된 딜 ${c.dataset.carN[c.dataIndex]}개는 마지막 값으로 포함)` : '';
         return `${c.dataset.label}: ${raw==null ? (st==='end' ? '딜 종료' : '100위권 밖') : metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}${car}`; },
-        afterLabel: c => { const l = c.dataset.live && c.dataset.live[c.dataIndex]; return !l ? '' : [].concat(l).map(t => '  ◎ ' + t); }}} }
+        afterLabel: c => { const l = c.dataset.live && c.dataset.live[c.dataIndex]; const out = !l ? [] : [].concat(l).map(t => '  ◎ ' + t);
+          if(!c.dataset.pid && c.dataset.brk && c.dataset.brk[c.dataIndex]) out.unshift('  새 딜 시작 (이전 딜 합계 제외)'); return out; }}} }
   }});
 }
 

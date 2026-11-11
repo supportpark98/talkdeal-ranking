@@ -244,6 +244,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   추정매출 = 수집할 때마다 늘어난 주문수 × 그때의 톡딜가를 더한 값 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로, 옵션별 가격 차이는 반영되지 않은 추정치)<br>
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
   딜 종료 = 조회 기간 중 진행됐지만 종료 시점에는 끝난 딜. 딜 정보·추정매출·주문수·가격은 그 딜의 마지막 수집값<br>
+  라이브 추정매출 = 라이브 직전 수집과 직후 수집 사이에 늘어난 추정매출 (그 구간의 다른 판매도 포함된 대략적인 값)<br>
   추이의 회색 점선 = 딜이 끝났거나 100위권 밖으로 빠져 값이 없는 시점. 추정매출·주문수의 마지막 값을 이어서 표시하고 합계에도 포함<br>
   일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
 </footer>
@@ -491,6 +492,18 @@ async function update(){
     r.avgOrdering = r.dealDays && r.ordering != null ? r.ordering / r.dealDays : null;
     r.avgSales = r.dealDays && r.sales != null ? r.sales / r.dealDays : null;
     r.liveMs = ymd(r.liveStartAt);
+    // 라이브 구간 추정매출: 라이브 직전 수집과 직후 수집(같은 딜, 표 기준 시점까지) 사이에 늘어난 추정매출
+    r.liveSales = null;
+    if(r.liveMs){
+      let a = null, z = null;
+      for(const sn of S.snaps){
+        if(sn.t > S.cur.t) break;
+        const o = sn.rows.find(x => x.productId === r.productId);
+        if(sn.t <= r.liveMs) a = o && o.sales != null ? o : null;
+        else { z = o && o.sales != null ? o : null; break; }
+      }
+      if(a && z && a.dealStart === z.dealStart) r.liveSales = z.sales - a.sales;
+    }
     r.baseRank = b ? b.rank : null;
     r.chg = !S.base ? 0 : b ? b.rank - r.rank : 999;  // 999 = 신규
     // 주문수·추정매출 증감 기준: 조회 시작 시점과 딜 오픈 시점 중 늦은 쪽
@@ -624,7 +637,7 @@ function render(){
       <td>${esc(r.brand)}</td>
       <td class="num bold">${r.dealStartMs ? `${mdLab(r.dealStartMs)}<span class="delta same">${pad(kparts(r.dealStartMs).h)}:${pad(new Date(r.dealStartMs + KST).getUTCMinutes())}</span>` : '-'}</td>
       <td class="num bold">${r.dealEndMs ? `${mdLab(r.dealEndMs)}<span class="delta same">${pad(kparts(r.dealEndMs).h)}:${pad(new Date(r.dealEndMs + KST).getUTCMinutes())}</span>` : '-'}</td>
-      <td class="num">${r.liveMs ? `${mdLab(r.liveMs)}<span class="delta same">${pad(kparts(r.liveMs).h)}:${pad(new Date(r.liveMs + KST).getUTCMinutes())}</span>` : '-'}</td>
+      <td class="num">${r.liveMs ? `${mdLab(r.liveMs)}<span class="delta same">${pad(kparts(r.liveMs).h)}:${pad(new Date(r.liveMs + KST).getUTCMinutes())}</span>${r.liveSales != null ? `<span class="delta same">(추정매출 +${won(r.liveSales)}원)</span>` : ''}` : '-'}</td>
       <td class="num bold">${r.sales!=null ? won(r.sales)+'원' : '-'}${deltaHTML(r.dSales, won)}${r.avgSales!=null ? `<span class="delta same">(일평균 ${won(r.avgSales)}원)</span>` : ''}</td>
       <td class="num bold">${fmt(r.ordering)}${deltaHTML(r.dOrdering, fmt)}${r.avgOrdering!=null ? `<span class="delta same">(일평균 ${fmt(r.avgOrdering)})</span>` : ''}</td>
       <td class="num strike">${r.originalPrice && r.originalPrice !== r.price ? fmt(r.originalPrice)+'원' : '-'}</td>
@@ -896,7 +909,7 @@ async function downloadXlsx(){
     const dt = ms => { if(ms==null) return null; const p = kparts(ms); return `${p.y}-${pad(p.m)}-${pad(p.d)} ${pad(p.h)}:${pad(new Date(ms + KST).getUTCMinutes())}`; };
     const chgText = r => !S.base ? '' : r.chg===999 ? 'NEW' : r.chg;
     const sheet1 = tableRows().map(r => ({'순위':r.rank, '변동':chgText(r), '상품명':r.name, '스토어명':r.brand, '카테고리':r.category,
-      '딜 오픈일자':dt(r.dealStartMs), '딜 운영일수':r.dealDays, '딜 종료일자':dt(r.dealEndMs), '라이브 일자':dt(r.liveMs),
+      '딜 오픈일자':dt(r.dealStartMs), '딜 운영일수':r.dealDays, '딜 종료일자':dt(r.dealEndMs), '라이브 일자':dt(r.liveMs), '라이브 추정매출':r.liveSales,
       '추정매출':r.sales, '추정매출 증감':r.dSales, '일평균 추정매출':r.avgSales!=null?Math.round(r.avgSales):null,
       '주문수':r.ordering, '주문수 증감':r.dOrdering, '일평균 주문':r.avgOrdering!=null?Math.round(r.avgOrdering):null,
       '정상가':r.originalPrice, '톡딜가':r.price, '최대혜택가':r.maxBenefitPrice, '할인율(%)':r.discountRate,
@@ -907,7 +920,7 @@ async function downloadXlsx(){
       '정상가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '라이브 일자':dt(ymd(r.liveStartAt)), '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':p.url}); }));
     const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.json_to_sheet(sheet1), ws2 = XLSX.utils.json_to_sheet(sheet2);
-    ws1['!cols'] = [6,6,50,14,14,17,10,17,17,12,12,14,9,10,10,10,10,10,8,9,8,8,11,45].map(w=>({wch:w}));
+    ws1['!cols'] = [6,6,50,14,14,17,10,17,17,12,12,12,14,9,10,10,10,10,10,8,9,8,8,11,45].map(w=>({wch:w}));
     ws2['!cols'] = [12,6,50,14,14,10,8,9,12,10,10,17,9,8,8,11,45].map(w=>({wch:w}));
     XLSX.utils.book_append_sheet(wb, ws1, '랭킹(종료시점)');
     XLSX.utils.book_append_sheet(wb, ws2, '기간 전체 기록');

@@ -746,13 +746,19 @@ function drawChart(){
   const top10 = metric === 'rank' && $('#top10').checked;
   let ids, datasets;
   // 추정매출/주문수: 기간 중 값이 있다가 비는 시점(딜 종료, 100위권 밖)은 마지막 값을 이어서 쓴다 (car = 이어 쓴 점)
+  //  같은 상품이 새 딜로 다시 열리면(딜 오픈일자가 다름) 이전 선과 잇지 않는다 (brk = 새 딜 첫 점).
+  //  합계용 tot: 끝난 이전 딜의 최종값 + 지금 딜 값 (기간 전체 합계에서 이전 딜 매출이 사라지지 않게)
   const series = id => {
-    let last = null; const vals = [], car = [];
+    let last = null, deal, done = 0; const vals = [], car = [], brk = [], tot = [];
     bs.forEach(b => { const r = b.map.get(id), v = r ? r[metric] : null;
-      if(v != null){ last = v; vals.push(v); car.push(false); }
-      else if(metric !== 'rank' && last != null){ vals.push(last); car.push(true); }
-      else { vals.push(null); car.push(false); } });
-    return {vals, car};
+      if(v != null){
+        const nb = metric !== 'rank' && last != null && r.dealStart && deal && r.dealStart !== deal;
+        if(nb) done += last;
+        last = v; deal = r.dealStart; vals.push(v); car.push(false); brk.push(nb); tot.push(done + v);
+      }
+      else if(metric !== 'rank' && last != null){ vals.push(last); car.push(true); brk.push(false); tot.push(done + last); }
+      else { vals.push(null); car.push(false); brk.push(false); tot.push(null); } });
+    return {vals, car, brk, tot};
   };
   if(q){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
@@ -766,7 +772,7 @@ function drawChart(){
       // 검색어마다 합계 선 하나씩 (예: 브랜드끼리 비교)
       // 끝난 딜도 마지막 값으로 합계에 넣는다 (기간 전체 합계에서 빠지지 않게). carN = 그 시점 합계에 마지막 값으로 들어간 상품 수
       const sumOf = ms => { const ss = ms.map(series), carN = bs.map((_, i) => ss.filter(x => x.car[i]).length);
-        const data = bs.map((_, i) => { let sum = 0, any = false; ss.forEach(x => { if(x.vals[i] != null){ sum += x.vals[i]; any = true; } }); return any ? sum : null; });
+        const data = bs.map((_, i) => { let sum = 0, any = false; ss.forEach(x => { if(x.tot[i] != null){ sum += x.tot[i]; any = true; } }); return any ? sum : null; });
         return {data, carN}; };
       datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ...sumOf(ms)}; })
         : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, ...sumOf(match)}];
@@ -784,7 +790,7 @@ function drawChart(){
   if(!datasets) datasets = ids.map(id => { const sr = series(id); return {
     pid: id,
     label: `${product(id).brand||''} · ${(product(id).name||'').slice(0,20)}`,
-    data: sr.vals, car: sr.car.some(Boolean) ? sr.car : null
+    data: sr.vals, car: sr.car.some(Boolean) ? sr.car : null, brk: sr.brk.some(Boolean) ? sr.brk : null
   }; });
   // TOP 10만: 11위 이하 시점은 맨 아래 '10위 미만' 칸(11)에 점을 찍고, 라벨/툴팁은 실제 순위(d.real)로. 기간 내내 10위 밖인 상품은 빼기
   if(top10){
@@ -808,9 +814,11 @@ function drawChart(){
   datasets.forEach((d,i) => { const c = COLORS[i%COLORS.length];
     Object.assign(d, {borderColor:c, backgroundColor:c, tension:0, pointRadius:3, borderWidth:2, spanGaps:false, clip:false});
     // 마지막 값을 이어 쓴 구간: 회색 점선 + 속이 빈 회색 점
-    if(d.car) Object.assign(d, {
-      segment:{borderColor: x => d.car[x.p1DataIndex] ? tick : undefined, borderDash: x => d.car[x.p1DataIndex] ? [4, 4] : undefined},
-      pointBackgroundColor: d.car.map(v => v ? cardC : c), pointBorderColor: d.car.map(v => v ? tick : c)});
+    if(d.car) Object.assign(d, {pointBackgroundColor: d.car.map(v => v ? cardC : c), pointBorderColor: d.car.map(v => v ? tick : c)});
+    // 새 딜 첫 점으로 들어가는 선은 그리지 않음
+    if(d.car || d.brk) d.segment = {
+      borderColor: x => d.brk && d.brk[x.p1DataIndex] ? 'transparent' : d.car && d.car[x.p1DataIndex] ? tick : undefined,
+      borderDash: x => d.car && d.car[x.p1DataIndex] ? [4, 4] : undefined};
   });
   // 순위 축: 실제 그려진 순위 범위에 맞추고 위아래로 반 칸 여백, 눈금은 정수만
   const rs = top10 ? [1, 11] : datasets.flatMap(d => d.data).filter(v => v != null);
@@ -849,6 +857,7 @@ function drawChart(){
         if(v0 == null) return;
         const v = ds.real ? ds.real[i] : v0;   // TOP 10 모드에선 점 위치와 별개로 실제 순위로 표시
         const st = ds.status && ds.status[i];
+        if(ds.brk && ds.brk[i]) prev = null;   // 새 딜 첫 점은 이전 딜 대비 증감 표시 안 함
         // 마지막 값을 이어 쓴 점은 값만 회색으로 (증감 없음)
         if(ds.car && ds.car[i]){ items.push({i, v, prev: null, pt: meta.data[i]}); prev = v; return; }
         items.push({i, v, prev: st ? null : prev, pt: meta.data[i], st});

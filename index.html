@@ -156,6 +156,7 @@ tbody tr.sel{background:var(--sel)}
 .ph{visibility:hidden}
 /* 끝난 딜(마지막 딜 값으로 채운 줄): 검은 글씨를 회색으로. 빨강/파랑 변동 표시는 그대로 */
 #rank-table tr.ended td{color:var(--muted)}
+.outrk{font-size:11px;font-weight:600;line-height:1.2;display:inline-block}
 .pname .cat{font-size:12px;color:var(--muted)}
 .disc{color:var(--text)}
 .delta{font-size:11px;display:block}
@@ -248,6 +249,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   추정매출 = 수집할 때마다 늘어난 주문수 × 그때의 톡딜가를 더한 값 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로, 옵션별 가격 차이는 반영되지 않은 추정치)<br>
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
   딜 종료 = 조회 기간 중 진행됐지만 종료 시점에는 끝난 딜. 딜 정보·추정매출·주문수·가격은 그 딜의 마지막 수집값<br>
+  순위권 밖 = 조회 기간 중 순위에 있었지만 종료 시점에는 100위 밖으로 밀린 딜. 딜 정보·추정매출·주문수·가격은 순위권 안에 있던 마지막 수집값<br>
   라이브 추정매출 = 라이브 직전 수집과 직후 수집 사이에 늘어난 추정매출 (그 구간의 다른 판매도 포함된 대략적인 값). 딜 오픈 후 라이브 전 수집에서 순위에 잡힌 적이 없으면 직후 수집 값 전체<br>
   추이의 회색 점선 = 딜이 끝났거나 100위권 밖으로 빠져 값이 없는 시점. 추정매출·주문수의 마지막 값을 이어서 표시하고 합계에도 포함<br>
   일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
@@ -482,6 +484,15 @@ async function update(){
         if(o){ DEAL_KEYS.forEach(k => r[k] = o[k]); r.endedAt = S.inRange[i].t; break; }
       }
     });
+    // 기간 중 딜로 순위에 있었는데 종료 시점엔 100위 밖인 상품도 표에 넣는다 (추이 합계와 같은 기준)
+    //  순위는 '순위권 밖', 나머지는 마지막 수집값. 딜이 아직 진행 중이면 '순위권 밖', 끝났으면 '딜 종료' 태그
+    const have = new Set(S.cur.rows.map(r => r.productId));
+    for(let i = S.inRange.length - 2; i >= 0; i--) S.inRange[i].rows.forEach(o => {
+      if(o.ordering == null || have.has(o.productId)) return;
+      have.add(o.productId);
+      const endMs = ymd(o.dealEnd);
+      S.cur.rows.push({...o, rank: null, label: null, endedAt: S.inRange[i].t, outRank: true, dealOver: !!endMs && endMs < S.cur.t});
+    });
   }
   S.base = S.inRange.length > 1 ? S.inRange[0] : [...S.snaps].reverse().find(s => s.t < S.cur.t) || null;
   const baseMap = new Map((S.base?.rows||[]).map(r=>[r.productId, r]));
@@ -502,7 +513,7 @@ async function update(){
     //  (라이브 직후 수집 값 전체를 라이브 매출로). 직후 수집에 값이 없으면 계산하지 않음
     r.liveSales = r.liveMs ? liveCalc(r.productId, r.liveMs, S.cur.t).sales : null;
     r.baseRank = b ? b.rank : null;
-    r.chg = !S.base ? 0 : b ? b.rank - r.rank : 999;  // 999 = 신규
+    r.chg = r.outRank ? null : !S.base ? 0 : b ? b.rank - r.rank : 999;  // 999 = 신규, null = 순위권 밖
     // 주문수·추정매출 증감 기준: 조회 시작 시점과 딜 오픈 시점 중 늦은 쪽
     //  - 기간 시작 때 같은 딜이 있었으면 그 값 대비
     //  - 기간 중에 오픈한 딜(새로 다시 열린 딜 포함)은 0부터 = 현재 누적값
@@ -536,7 +547,7 @@ function tiles(){
   if(!top){ $('#tiles').innerHTML = '<div class="tile"><div class="k">요약</div><div class="v">-</div><div class="d">조건에 맞는 상품이 없어요</div></div>'; return; }
   // 브랜드별 상품 수 / 추정매출 합계 (같으면 더 높은 순위의 브랜드 먼저)
   const B = new Map();
-  rs.forEach(r => { const k = r.brand || '-', b = B.get(k) || {brand:k, n:0, sales:0, best:r.rank}; b.n++; b.sales += r.sales || 0; b.best = Math.min(b.best, r.rank); B.set(k, b); });
+  rs.forEach(r => { const k = r.brand || '-', b = B.get(k) || {brand:k, n:0, sales:0, best:r.rank ?? 999}; b.n++; b.sales += r.sales || 0; b.best = Math.min(b.best, r.rank ?? 999); B.set(k, b); });
   const brands = [...B.values()];
   const most = brands.slice().sort((a,b)=>b.n-a.n || a.best-b.best)[0];
   const rich = brands.filter(b=>b.sales>0).sort((a,b)=>b.sales-a.sales || a.best-b.best)[0];
@@ -581,6 +592,7 @@ window.addEventListener('resize', () => { clearTimeout(marquee.t); marquee.t = s
 
 // ---- 랭킹 표 ----
 function chgHTML(r){
+  if(r.outRank) return '<span class="same">-</span>';
   if(!S.base) return '<span class="same">-</span>';
   if(r.chg===999) return '<span class="new">NEW</span>';
   if(r.chg>0) return `<span class="up">▲${r.chg}</span>`;
@@ -636,10 +648,10 @@ function render(){
   const rs = tableRows();
   $('#rows').innerHTML = rs.length ? rs.map(r => `
     <tr data-id="${r.productId}" class="${(S.shown || S.picked).includes(String(r.productId))?'sel':''}${r.endedAt?' ended':''}">
-      <td class="rank">${r.rank}</td>
+      <td class="rank">${r.rank != null ? r.rank : '<span class="outrk">순위권<br>밖</span>'}</td>
       <td class="chg">${chgHTML(r)}</td>
       <td class="pname"><div class="pwrap"><img class="thumb" loading="lazy" src="${esc(r.image)}" alt="" onerror="this.onerror=null;this.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'">
-        <div class="ptext">${r.endedAt?`<span class="tag ended" title="${slotLab(r.endedAt)} 수집값(딜 마지막 값)으로 표시">딜 종료</span>`:''}${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></div></div></td>
+        <div class="ptext">${r.endedAt?(r.outRank && !r.dealOver ? `<span class="tag ended" title="${slotLab(r.endedAt)} 수집값(순위권 안에 있던 마지막 값)으로 표시">순위권 밖</span>` : `<span class="tag ended" title="${slotLab(r.endedAt)} 수집값(딜 마지막 값)으로 표시">딜 종료</span>`):''}${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></div></div></td>
       <td>${esc(r.brand)}</td>
       <td class="num bold">${r.dealStartMs ? `${mdLab(r.dealStartMs)}<span class="delta same">${pad(kparts(r.dealStartMs).h)}:${pad(new Date(r.dealStartMs + KST).getUTCMinutes())}</span><span class="delta same ph">&nbsp;</span>` : '-'}</td>
       <td class="num bold">${r.dealEndMs ? `${mdLab(r.dealEndMs)}<span class="delta same">${pad(kparts(r.dealEndMs).h)}:${pad(new Date(r.dealEndMs + KST).getUTCMinutes())}</span><span class="delta same ph">&nbsp;</span>` : '-'}</td>
@@ -965,7 +977,7 @@ async function downloadXlsx(){
     if(typeof XLSX === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
     const dt = ms => { if(ms==null) return null; const p = kparts(ms); return `${p.y}-${pad(p.m)}-${pad(p.d)} ${pad(p.h)}:${pad(new Date(ms + KST).getUTCMinutes())}`; };
     const chgText = r => !S.base ? '' : r.chg===999 ? 'NEW' : r.chg;
-    const sheet1 = tableRows().map(r => ({'순위':r.rank, '변동':chgText(r), '상품명':r.name, '스토어명':r.brand, '카테고리':r.category,
+    const sheet1 = tableRows().map(r => ({'순위':r.rank ?? '순위권 밖', '변동':chgText(r), '상품명':r.name, '스토어명':r.brand, '카테고리':r.category,
       '딜 오픈일자':dt(r.dealStartMs), '딜 운영일수':r.dealDays, '딜 종료일자':dt(r.dealEndMs), '라이브 일자':dt(r.liveMs), '라이브 추정매출':r.liveSales,
       '추정매출':r.sales, '추정매출 증감':r.dSales, '일평균 추정매출':r.avgSales!=null?Math.round(r.avgSales):null,
       '주문수':r.ordering, '주문수 증감':r.dOrdering, '일평균 주문':r.avgOrdering!=null?Math.round(r.avgOrdering):null,

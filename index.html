@@ -101,6 +101,8 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .mselbtn{min-width:150px}
 .qnote{font-size:12px;color:var(--muted)}
 .lcol{display:flex;flex-direction:column;gap:4px}
+/* 수집 안내·집계 오류 안내는 필터 줄 아래 전체 폭으로 (왼쪽 묶음이 넓어져 검색창이 밀리고 가운데가 비지 않게) */
+.lnotes{display:flex;flex-direction:column;gap:4px;margin-top:4px}
 .lrow{display:flex;gap:8px;flex-wrap:wrap}
 .toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
@@ -185,11 +187,11 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     </div>
     <div class="toolbar searchbar">
       <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
-      <span class="grp"><span class="lbl">카테고리</span><span class="msel" id="csub"><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden></div></span></span></span>
-        <span class="qnote">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</span>
-        <span class="qnote anote" id="chartNote"></span></span>
+      <span class="grp"><span class="lbl">카테고리</span><span class="msel" id="csub"><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden></div></span></span></span></span>
       <span class="qwrap"><span class="grp qrow"><span class="lbl">검색</span><input id="cq" type="search" placeholder="스토어명, 키워드 또는 상품코드 검색"></span><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
+    <div class="lnotes"><span class="qnote">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</span>
+      <span class="qnote anote" id="chartNote"></span></div>
     <div class="rangeinfo" id="rangeinfo"></div>
   </section>
 
@@ -251,6 +253,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   딜 종료 = 조회 기간 중 진행됐지만 종료 시점에는 끝난 딜. 딜 정보·추정매출·주문수·가격은 그 딜의 마지막 수집값<br>
   순위권 밖 = 조회 기간 중 순위에 있었지만 종료 시점에는 100위 밖으로 밀린 딜. 딜 정보·추정매출·주문수·가격은 순위권 안에 있던 마지막 수집값<br>
   라이브 추정매출 = 라이브 직전 수집과 직후 수집 사이에 늘어난 추정매출 (그 구간의 다른 판매도 포함된 대략적인 값). 딜 오픈 후 라이브 전 수집에서 순위에 잡힌 적이 없으면 직후 수집 값 전체<br>
+  집계 오류 보정 = 카카오 집계 오류로 일부 상품이 빠진 수집분은, 빠진 상품의 주문수·누적 판매량·순위를 앞뒤 정상 수집값 사이에서 수집 시각 비율로 채운 값 (같은 딜이 앞뒤 수집에 모두 있을 때만, 다음 정상 수집 때 자동 보정)<br>
   추이의 회색 점선 = 딜이 끝났거나 100위권 밖으로 빠져 값이 없는 시점. 추정매출·주문수의 마지막 값을 이어서 표시하고 합계에도 포함<br>
   일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
 </footer>
@@ -326,19 +329,13 @@ function slotOf(ms){
   return null;
 }
 // 수집 시각을 '11/8 18시'처럼 집계 시간으로 표시 (정기 수집 시간에 안 맞으면 실제 시각)
-// 집계 오류 안내 (추이에만, 오류 시간대가 기간에 있을 때만)
-//  1건(채움): *11/10 16시 데이터는 카카오 집계 오류로 빠진 상품 14개를 앞뒤 수집값(9시·18시)의 시간 비율로 보정했습니다.
-//  1건(대기): *11/10 16시 데이터는 카카오 집계 오류로 일부 상품이 빠져 있으며, 다음 수집 후 보정됩니다.
-//  여러 건:   *카카오 집계 오류로 빠진 상품을 앞뒤 수집값의 시간 비율로 보정했습니다. (11/10 16시 14개, 11/12 9시 8개, 11/13 18시는 다음 수집 후 보정)
+// 집계 오류 안내 (필터 아래, 오류 시간대가 기간에 있을 때만). 자세한 보정 방법은 푸터에
+//  보정됨:   *11/10 16시 데이터는 카카오 집계 오류로 보정된 값입니다.   (여러 건이면 '11/10 16시, 11/12 9시 데이터는 …')
+//  보정 대기: *11/13 18시 데이터는 카카오 집계 오류로 다음 수집 후 보정됩니다.
 function anomalyNote(list){
-  if(!list.length) return '';
-  const hr = t => slotLab(Date.parse(t)).split(' ').pop();
-  if(list.length === 1){
-    const x = list[0];
-    return x.filled ? `*${slotLab(x.t)} 데이터는 카카오 집계 오류로 빠진 상품 ${x.filled.length}개를 앞뒤 수집값(${hr(x.fillFrom[0])}·${hr(x.fillFrom[1])})의 시간 비율로 보정했습니다.`
-      : `*${slotLab(x.t)} 데이터는 카카오 집계 오류로 일부 상품이 빠져 있으며, 다음 수집 후 보정됩니다.`;
-  }
-  return `*카카오 집계 오류로 빠진 상품을 앞뒤 수집값의 시간 비율로 보정했습니다. (${list.map(x => x.filled ? `${slotLab(x.t)} ${x.filled.length}개` : `${slotLab(x.t)}는 다음 수집 후 보정`).join(', ')})`;
+  const done = list.filter(x => x.filled).map(x => slotLab(x.t)), wait = list.filter(x => !x.filled).map(x => slotLab(x.t));
+  return [done.length ? `*${done.join(', ')} 데이터는 카카오 집계 오류로 보정된 값입니다.` : '',
+          wait.length ? `*${wait.join(', ')} 데이터는 카카오 집계 오류로 다음 수집 후 보정됩니다.` : ''].filter(Boolean).join(' ');
 }
 function slotLab(ms){
   const a = slotOf(ms); if(!a) return lab(ms);

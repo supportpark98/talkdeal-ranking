@@ -244,7 +244,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   추정매출 = 수집할 때마다 늘어난 주문수 × 그때의 톡딜가를 더한 값 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로, 옵션별 가격 차이는 반영되지 않은 추정치)<br>
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
   딜 종료 = 조회 기간 중 진행됐지만 종료 시점에는 끝난 딜. 딜 정보·추정매출·주문수·가격은 그 딜의 마지막 수집값<br>
-  라이브 추정매출 = 라이브 직전 수집과 직후 수집 사이에 늘어난 추정매출 (그 구간의 다른 판매도 포함된 대략적인 값)<br>
+  라이브 추정매출 = 라이브 직전 수집과 직후 수집 사이에 늘어난 추정매출 (그 구간의 다른 판매도 포함된 대략적인 값). 딜 오픈 후 라이브 전 수집에서 순위에 잡힌 적이 없으면 직후 수집 값 전체<br>
   추이의 회색 점선 = 딜이 끝났거나 100위권 밖으로 빠져 값이 없는 시점. 추정매출·주문수의 마지막 값을 이어서 표시하고 합계에도 포함<br>
   일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
 </footer>
@@ -492,17 +492,25 @@ async function update(){
     r.avgOrdering = r.dealDays && r.ordering != null ? r.ordering / r.dealDays : null;
     r.avgSales = r.dealDays && r.sales != null ? r.sales / r.dealDays : null;
     r.liveMs = ymd(r.liveStartAt);
-    // 라이브 구간 추정매출: 라이브 직전 수집과 직후 수집(같은 딜, 표 기준 시점까지) 사이에 늘어난 추정매출
+    // 라이브 구간 추정매출 = 라이브 직후 수집 값 - 라이브 직전 수집 값 (같은 딜, 표 기준 시점까지)
+    //  직전 수집에 그 딜 값이 없으면: 딜 오픈 후 라이브 전까지 한 번도 100위 안에 안 잡힌 것이므로 직전 값을 0으로 본다
+    //  (라이브 직후 수집 값 전체를 라이브 매출로). 직후 수집에 값이 없으면 계산하지 않음
     r.liveSales = null;
     if(r.liveMs){
-      let a = null, z = null;
+      let a = null, z = null, before = [];
       for(const sn of S.snaps){
         if(sn.t > S.cur.t) break;
         const o = sn.rows.find(x => x.productId === r.productId);
-        if(sn.t <= r.liveMs) a = o && o.sales != null ? o : null;
+        if(sn.t <= r.liveMs) before.push({t: sn.t, o});
         else { z = o && o.sales != null ? o : null; break; }
       }
-      if(a && z && a.dealStart === z.dealStart) r.liveSales = z.sales - a.sales;
+      if(z){
+        const zs = ymd(z.dealStart);
+        const prev = before.length ? before[before.length - 1].o : null;
+        if(prev && prev.sales != null && prev.dealStart === z.dealStart) r.liveSales = z.sales - prev.sales;
+        // 0으로 보는 조건: 딜 오픈 뒤·라이브 전에 수집이 한 번 이상 있었는데 그때 이 딜이 순위에 없었음 (수집 시작 전 라이브는 제외)
+        else if(zs && zs <= r.liveMs && before.some(x => x.t >= zs) && !before.some(x => x.o && x.o.dealStart === z.dealStart && x.o.sales != null)) r.liveSales = z.sales;
+      }
     }
     r.baseRank = b ? b.rank : null;
     r.chg = !S.base ? 0 : b ? b.rank - r.rank : 999;  // 999 = 신규

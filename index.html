@@ -208,6 +208,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <div class="hint" id="chartHint"></div>
       <label class="chk" id="sumWrap"><input type="checkbox" id="sum"> 검색어별로 합쳐 보기</label>
       <label class="chk" id="top10Wrap"><input type="checkbox" id="top10" checked> TOP 10만 표시</label>
+      <label class="chk" id="liveWrap"><input type="checkbox" id="liveChk"> 라이브 표시</label>
     </div>
     <div class="hint anote" id="chartNote"></div>
     <div class="chartbox"><canvas id="chart"></canvas></div>
@@ -774,13 +775,13 @@ function drawChart(){
   //  같은 상품이 새 딜로 다시 열리면(딜 오픈일자가 다름) 이전 선과 잇지 않는다 (brk = 새 딜 첫 점).
   //  합계도 새 딜이 잡힌 시점부터는 새 딜 값만 (이전 딜 최종값을 더하지 않음)
   // 라이브 반영 시점: 라이브 뒤 첫 수집이 들어간 칸에 링 표시 (그 칸에 값이 있을 때만). {칸 번호: '라이브 11/11 08:30 (+8백만원)'}
-  const liveMarks = id => {
+  const liveMarks = (id, sum) => {
     const lives = new Set(); S.snaps.forEach(sn => sn.rows.forEach(r => { if(String(r.productId) === id && r.liveStartAt) lives.add(r.liveStartAt); }));
     const out = {}, endT = bs[bs.length - 1].snap.t;
     lives.forEach(ls => { const L = ymd(ls); if(!L) return;
       const {zt, sales} = liveCalc(id, L, endT); if(zt == null) return;
-      const i = bs.findIndex(b => b.snap.t >= zt); if(i < 0 || !bs[i].map.get(id)) return;
-      out[i] = `라이브 ${mdLab(L).replace(/<[^>]+>/g, '')} ${pad(kparts(L).h)}:${pad(new Date(L + KST).getUTCMinutes())}` + (sales != null ? ` (+${Math.round(sales / 1e6).toLocaleString('ko-KR')}백만원)` : ''); });
+      const i = bs.findIndex(b => b.snap.t >= zt); if(i < 0 || (!sum && !bs[i].map.get(id))) return;
+      out[i] = (sum ? `${product(id).brand || ''} · ${(product(id).name || '').slice(0, 14)} ` : '') + `라이브 ${mdLab(L).replace(/<[^>]+>/g, '')} ${pad(kparts(L).h)}:${pad(new Date(L + KST).getUTCMinutes())}` + (sales != null ? ` (+${Math.round(sales / 1e6).toLocaleString('ko-KR')}백만원)` : ''); });
     return Object.keys(out).length ? out : null;
   };
   const series = id => {
@@ -807,7 +808,9 @@ function drawChart(){
       // 끝난 딜도 마지막 값으로 합계에 넣는다 (기간 전체 합계에서 빠지지 않게). carN = 그 시점 합계에 마지막 값으로 들어간 상품 수
       const sumOf = ms => { const ss = ms.map(series), carN = bs.map((_, i) => ss.filter(x => x.car[i]).length);
         const data = bs.map((_, i) => { let sum = 0, any = false; ss.forEach(x => { if(x.vals[i] != null){ sum += x.vals[i]; any = true; } }); return any ? sum : null; });
-        return {data, carN}; };
+        // 라이브 표시: 묶인 상품들의 라이브 반영 시점을 모아서 (한 칸에 여러 상품이면 툴팁에 모두)
+        const live = {}; ms.forEach(id => { const m = liveMarks(id, true); if(m) Object.entries(m).forEach(([k, t]) => (live[k] = live[k] || []).push(t)); });
+        return {data, carN, live: Object.keys(live).length ? live : null}; };
       datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ...sumOf(ms)}; })
         : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, ...sumOf(match)}];
     } else {
@@ -842,6 +845,7 @@ function drawChart(){
       return 'out';
     });
   });
+  if(!$('#liveChk').checked) datasets.forEach(d => { d.live = null; });
   const hasOut = datasets.some(d => d.status && d.status.some(Boolean));
   $('#liveNote').textContent = datasets.some(d => d.live) ? '◎ 라이브 반영 시점 (점을 누르면 라이브 시각과 추정매출이 보입니다)' : '';
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
@@ -947,7 +951,7 @@ function drawChart(){
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
       tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw, st = c.dataset.status && c.dataset.status[c.dataIndex]; const car = c.dataset.car && c.dataset.car[c.dataIndex] ? ' (딜 종료·순위 밖, 마지막 값)' : c.dataset.carN && c.dataset.carN[c.dataIndex] ? ` (종료된 딜 ${c.dataset.carN[c.dataIndex]}개는 마지막 값으로 포함)` : '';
         return `${c.dataset.label}: ${raw==null ? (st==='end' ? '딜 종료' : '100위권 밖') : metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}${car}`; },
-        afterLabel: c => c.dataset.live && c.dataset.live[c.dataIndex] ? '  ◎ ' + c.dataset.live[c.dataIndex] : ''}} }
+        afterLabel: c => { const l = c.dataset.live && c.dataset.live[c.dataIndex]; return !l ? '' : [].concat(l).map(t => '  ◎ ' + t); }}} }
   }});
 }
 
@@ -1013,7 +1017,7 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   
-  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart;
+  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart; $('#liveChk').onchange = drawChart;
   $('#xlsx').onclick = downloadXlsx;
   $$('#cols col').forEach(c => c.dataset.w = c.style.width);
   setupResize();

@@ -534,8 +534,8 @@ async function update(){
   { const note = anomalyNote(S.inRange.filter(x => x.anomaly));
     $('#chartNote').textContent = note; }
   $('#cmp').textContent = !S.base ? '' : S.inRange.length > 1 ? `*변동은 기간 시작(${slotLab(S.base.t)}) 대비 (기간 중 오픈한 딜의 추정매출·주문수는 오픈 이후), 표는 종료(${slotLab(S.cur.t)}) 기준` : `*변동은 직전 수집(${slotLab(S.base.t)}) 대비`;
-  if(!S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
-    S.picked = S.cur.rows.slice(0,DEFPICK).map(r=>String(r.productId));
+  if(S.autoPick || !S.picked.length || !S.picked.some(id => S.cur.rows.find(r=>String(r.productId)===id)))
+    { S.picked = tableRows().slice(0,DEFPICK).map(r=>String(r.productId)); S.autoPick = true; }
   tiles(); drawChart(); render();   // 추이에 표시할 상품(S.shown)을 먼저 정한 뒤 표에 노란 표시
 }
 
@@ -667,7 +667,7 @@ function render(){
     if(e.target.closest('a')) return;
     const id = tr.dataset.id;
     let L = S.picked;
-    if(S.filterOn){ if(!S.fpicked.length) S.fpicked = (S.shown || []).slice(); L = S.fpicked; S.fnone = false; }
+    if(S.filterOn){ if(!S.fpicked.length) S.fpicked = (S.shown || []).slice(); L = S.fpicked; S.fnone = false; } else S.autoPick = false;
     const i = L.indexOf(id);
     if(i>=0) L.splice(i,1); else { if(L.length>=MAXPICK){ toast(`최대 ${MAXPICK}개까지만 선택할 수 있어요`); return; } L.push(id); }
     drawChart(); render();   // 추이가 표시 상품(S.shown)을 먼저 바꾼 뒤 표에 노란 표시 (순서가 반대면 한 박자 늦게 반영됨)
@@ -875,7 +875,7 @@ function drawChart(){
     label: `${product(id).brand||''} · ${(product(id).name||'').slice(0,20)}`,
     data: sr.vals, car: sr.car.some(Boolean) ? sr.car : null, brk: sr.brk.some(Boolean) ? sr.brk : null, live: liveMarks(id)
   }; });
-  // TOP 10만: 11위 이하 시점은 맨 아래 '10위 미만' 칸(11)에 점을 찍고, 라벨/툴팁은 실제 순위(d.real)로. 기간 내내 10위 밖인 상품은 빼기
+  // TOP 10만: 11위 이하 시점은 맨 아래 '10위 밖' 칸(11)에 점을 찍고, 라벨/툴팁은 실제 순위(d.real)로. 기간 내내 10위 밖인 상품은 빼기
   if(top10){
     datasets = datasets.filter(d => d.data.some(v => v != null && v <= 10));
     datasets.forEach(d => { d.real = d.data.slice(); d.data = d.data.map(v => v == null ? null : Math.min(v, 11)); });
@@ -915,7 +915,7 @@ function drawChart(){
   // 눈금은 일정한 간격만: 범위 10 이하는 1위마다, 25 이하는 5, 60 이하는 10, 그 이상은 20 (1위는 범위 안이면 항상 표시)
   const span = rMax - rMin, step = span <= 10 ? 1 : span <= 25 ? 5 : span <= 60 ? 10 : 20;
   const yBase = Math.ceil(rMax / step) * step, OUTY = top10 ? 11 : hasOut ? yBase + step : null;
-  const yLo = Math.max(0.5, Math.floor(rMin / step) * step - 0.5), yHi = OUTY || yBase + 0.5;   // '10위 미만'/'100위권 밖' 칸은 X축 바로 위(값 0처럼)
+  const yLo = Math.max(0.5, Math.floor(rMin / step) * step - 0.5), yHi = OUTY || yBase + 0.5;   // '10위 밖'/'100위권 밖' 칸은 X축 바로 위(값 0처럼)
   if(OUTY) datasets.forEach(d => { if(d.status) d.data = d.data.map((v, i) => d.status[i] ? OUTY : v); });
   const yRank = {reverse:true, min: yLo, max: yHi,
     afterBuildTicks: ax => {
@@ -924,7 +924,7 @@ function drawChart(){
       for(let v = Math.ceil(yLo / step) * step; v <= yHi; v += step) if(v > 1 && v >= yLo) t.push(v);
       ax.ticks = t.map(value => ({value}));
     },
-    title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => top10 && v === 11 ? '10위 미만' : v === OUTY ? '100위권 밖' : v + '위'}, grid:{color:grid}};
+    title:{display:true,text:'순위',color:tick}, ticks:{color:tick, callback: v => top10 && v === 11 ? '10위 밖' : v === OUTY ? '100위권 밖' : v + '위'}, grid:{color:grid}};
   const yVal = {beginAtZero:true,
     title:{display:true,text:METRIC[metric]+(metric==='sales'?' (백만원)':''),color:tick},
     ticks:{color:tick, callback:v=> v < 0 ? '' : metric==='sales'?won(v):fmt(v)},
@@ -1070,7 +1070,7 @@ async function init(){
   $('#xlsx').onclick = downloadXlsx;
   // 랭킹 표 위 버튼: 지금 표에 보이는 순서대로 상위 10개 선택 / 모두 선택 해제 (검색 중이면 검색 결과 안에서)
   const setPick = ids => { if(!S.cur) return;
-    if(S.filterOn){ S.fpicked = ids; S.fnone = !ids.length; } else S.picked = ids;
+    if(S.filterOn){ S.fpicked = ids; S.fnone = !ids.length; } else { S.picked = ids; S.autoPick = false; }
     drawChart(); render(); };
   $('#pick10').onclick = () => setPick(S.cur ? tableRows().slice(0, MAXPICK).map(r => String(r.productId)) : []);
   $('#pickNone').onclick = () => setPick([]);
@@ -1079,7 +1079,14 @@ async function init(){
   $$('th[data-k]').forEach(th => th.onclick = () => {
     const k = th.dataset.k; S.sort = {k, dir: S.sort.k===k ? -S.sort.dir : (['rank','name','brand'].includes(k)?1:-1)}; render();
   });
-  $$('#metric button').forEach(b => b.onclick = () => { S.metric = b.dataset.m; $$('#metric button').forEach(x=>x.classList.toggle('on', x===b)); drawChart(); });
+  // 추이 지표와 랭킹 표 정렬 연동: 순위 → 순위 오름차순, 추정매출/주문수 → 그 값 내림차순.
+  //  추이 선택이 자동 상태(직접 고른 상품 없음)일 때만 새 정렬의 상위 5개로 바꾼다
+  $$('#metric button').forEach(b => b.onclick = () => {
+    S.metric = b.dataset.m; $$('#metric button').forEach(x=>x.classList.toggle('on', x===b));
+    S.sort = S.metric === 'rank' ? {k:'rank', dir:1} : {k:S.metric, dir:-1};
+    if(S.cur && !S.filterOn && S.autoPick) S.picked = tableRows().slice(0, DEFPICK).map(r => String(r.productId));
+    drawChart(); render();
+  });
   $$('#gran button').forEach(b => b.onclick = () => { S.gran = b.dataset.g; $$('#gran button').forEach(x=>x.classList.toggle('on', x===b)); drawChart(); });
 
   const last = S.index.lastMs, first = S.index.firstMs;

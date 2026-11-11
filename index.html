@@ -48,7 +48,10 @@ button{padding:6px 12px;border:1px solid var(--line);border-radius:8px;backgroun
 button:hover{border-color:var(--muted)}
 button.on{background:var(--text);color:var(--card);border-color:var(--text)}
 button:disabled{opacity:.5;cursor:default}
-.hbtns{display:flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:flex-end}
+.card h2 .ttl{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pickbtns{display:flex;gap:6px}
+.sbtn{font-size:12px;font-weight:600;padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);cursor:pointer}
+.sbtn:hover{background:var(--bg)}
 button.textbtn{border:none;background:none;color:var(--muted);font-size:12px;padding:4px 6px;margin-left:4px}
 button.textbtn:hover{color:var(--text);text-decoration:underline}
 .seg{display:inline-flex;gap:0}
@@ -188,7 +191,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       </div>
     </div>
     <div class="toolbar searchbar">
-      <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
+      <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option><option value="live">진행 중인 딜만</option></select></span>
       <span class="grp"><span class="lbl">카테고리</span><span class="msel" id="csub"><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden></div></span></span></span></span>
       <span class="qwrap"><span class="grp qrow"><span class="lbl">검색</span><input id="cq" type="search" placeholder="스토어명, 키워드 또는 상품코드 검색"></span><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
@@ -221,8 +224,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   </section>
 
   <section class="card">
-    <h2><span>랭킹</span>
-      <span class="hbtns"><button id="pick10" class="textbtn" type="button">상위 10개 선택</button><button id="pickNone" class="textbtn" type="button">선택 해제</button><button id="xlsx">엑셀 다운로드</button></span>
+    <h2><span class="ttl">랭킹<span class="pickbtns"><button id="pick10" class="sbtn" type="button">상위 10개 선택</button><button id="pickNone" class="sbtn" type="button">전체 선택 해제</button></span></span>
+      <button id="xlsx">엑셀 다운로드</button>
     </h2>
     <div class="hint" id="cmp"></div>
     <div class="tablewrap">
@@ -495,6 +498,7 @@ async function update(){
       S.cur.rows.push({...o, rank: null, label: null, endedAt: S.inRange[i].t, outRank: true, dealOver: !!endMs && endMs < S.cur.t});
     });
   }
+  S.liveIds = new Set(S.cur.rows.filter(r => r.ordering != null && !r.endedAt).map(r => String(r.productId)));
   S.base = S.inRange.length > 1 ? S.inRange[0] : [...S.snaps].reverse().find(s => s.t < S.cur.t) || null;
   const baseMap = new Map((S.base?.rows||[]).map(r=>[r.productId, r]));
   S.cur.rows.forEach(r => {
@@ -544,7 +548,7 @@ async function update(){
 function tiles(){
   // 위쪽 세부 카테고리·검색 필터를 함께 적용
   const ts = terms($('#cq').value), dl = !!$('#deal').value;
-  const rs = S.cur.rows.filter(r => (!ts.length || hit(((r.name||'')+' '+(r.brand||'')+' '+r.productId).toLowerCase(), ts)) && catOk(r.category) && (!dl || r.ordering != null)), top = rs[0];
+  const rs = S.cur.rows.filter(r => (!ts.length || hit(((r.name||'')+' '+(r.brand||'')+' '+r.productId).toLowerCase(), ts)) && catOk(r.category) && okDeal(r)), top = rs[0];
   if(!top){ $('#tiles').innerHTML = '<div class="tile"><div class="k">요약</div><div class="v">-</div><div class="d">조건에 맞는 상품이 없어요</div></div>'; return; }
   // 브랜드별 상품 수 / 추정매출 합계 (같으면 더 높은 순위의 브랜드 먼저)
   const B = new Map();
@@ -631,10 +635,12 @@ function setupCatMenu(onChange){
     onChange();
   });
 }
+// 톡딜상품 여부 필터: 톡딜상품만 = 딜 정보가 있는 상품(끝난 딜 포함), 진행 중인 딜만 = 종료 시점에 열려 있는 딜
+const okDeal = r => { const v = $('#deal').value; return !v || (v === 'live' ? S.liveIds.has(String(r.productId)) : r.ordering != null); };
 function tableRows(){
   const ts = terms($('#cq').value), f = 'all';
   let rs = S.cur.rows.filter(r => !ts.length || hit(((r.name||'')+' '+(r.brand||'')+' '+r.productId).toLowerCase(), ts));
-  if($('#deal').value) rs = rs.filter(r => r.ordering != null);
+  if($('#deal').value) rs = rs.filter(okDeal);
   if(S.csub.length) rs = rs.filter(r=>catOk(r.category));
   if(f==='up') rs = rs.filter(r=>r.chg>0 && r.chg!==999);
   if(f==='down') rs = rs.filter(r=>r.chg<0);
@@ -803,7 +809,7 @@ function drawChart(){
   const csub = S.csub.join(', '), dealOnly = !!$('#deal').value, q = ts.length > 0 || !!csub || dealOnly;
   S.filterOn = q; if(!q) S.matchIds = new Set();
   // 검색 조건이 바뀌면 조건 안에서 고른 상품은 초기화
-  const fkey = ts.join(',') + '|' + csub + '|' + dealOnly; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; S.fnone = false; }
+  const fkey = ts.join(',') + '|' + csub + '|' + $('#deal').value; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; S.fnone = false; }
   const sumMode = $('#sum').checked && !!q;
   $('#sum').disabled = !q;
   // 순위 모드에서는 'TOP 10만 표시'(기본 켜짐), 추정매출/주문수 모드에서는 '검색어별로 합쳐 보기'
@@ -843,7 +849,7 @@ function drawChart(){
   if(q){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
     const txt = id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')+' '+id).toLowerCase(); };
-    const match = [...seen].filter(id => (!ts.length || hit(txt(id), ts)) && catOk(product(id).category) && (!dealOnly || S.inRange.some(s => s.rows.some(r => String(r.productId) === id && r.ordering != null))));
+    const match = [...seen].filter(id => (!ts.length || hit(txt(id), ts)) && catOk(product(id).category) && (!dealOnly || ($('#deal').value === 'live' ? S.liveIds.has(id) : S.inRange.some(s => s.rows.some(r => String(r.productId) === id && r.ordering != null)))));
     S.matchIds = new Set(match);
     // 종료 시점 순위가 높은 순. 종료 시점에 랭킹에 없던 상품은 그 뒤에, 마지막으로 보인 시점이 늦고 순위가 높은 순
     const lastRank = id => { for(let i=bs.length-1;i>=0;i--){ const r = bs[i].map.get(id); if(r) return [bs.length-1-i, r.rank]; } return [1e9, 1e9]; };

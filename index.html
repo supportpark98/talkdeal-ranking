@@ -211,6 +211,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     </div>
     <div class="hint anote" id="chartNote"></div>
     <div class="chartbox"><canvas id="chart"></canvas></div>
+    <div class="hint anote" id="liveNote"></div>
   </section>
 
   <section class="card">
@@ -497,23 +498,7 @@ async function update(){
     // 라이브 구간 추정매출 = 라이브 직후 수집 값 - 라이브 직전 수집 값 (같은 딜, 표 기준 시점까지)
     //  직전 수집에 그 딜 값이 없으면: 딜 오픈 후 라이브 전까지 한 번도 100위 안에 안 잡힌 것이므로 직전 값을 0으로 본다
     //  (라이브 직후 수집 값 전체를 라이브 매출로). 직후 수집에 값이 없으면 계산하지 않음
-    r.liveSales = null;
-    if(r.liveMs){
-      let a = null, z = null, before = [];
-      for(const sn of S.snaps){
-        if(sn.t > S.cur.t) break;
-        const o = sn.rows.find(x => x.productId === r.productId);
-        if(sn.t <= r.liveMs) before.push({t: sn.t, o});
-        else { z = o && o.sales != null ? o : null; break; }
-      }
-      if(z){
-        const zs = ymd(z.dealStart);
-        const prev = before.length ? before[before.length - 1].o : null;
-        if(prev && prev.sales != null && prev.dealStart === z.dealStart) r.liveSales = z.sales - prev.sales;
-        // 0으로 보는 조건: 딜 오픈 뒤·라이브 전에 수집이 한 번 이상 있었는데 그때 이 딜이 순위에 없었음 (수집 시작 전 라이브는 제외)
-        else if(zs && zs <= r.liveMs && before.some(x => x.t >= zs) && !before.some(x => x.o && x.o.dealStart === z.dealStart && x.o.sales != null)) r.liveSales = z.sales;
-      }
-    }
+    r.liveSales = r.liveMs ? liveCalc(r.productId, r.liveMs, S.cur.t).sales : null;
     r.baseRank = b ? b.rank : null;
     r.chg = !S.base ? 0 : b ? b.rank - r.rank : 999;  // 999 = 신규
     // 주문수·추정매출 증감 기준: 조회 시작 시점과 딜 오픈 시점 중 늦은 쪽
@@ -581,6 +566,15 @@ function marquee(){
     m.style.setProperty('--dur', (dist / 30) + 's');    // 초당 약 30px
   });
 }
+// 휴대폰에서 점을 눌러 띄운 툴팁이 그래프 밖을 눌러도 남아 있던 문제: 그래프 밖을 누르면 닫는다
+//  (아이폰은 그래프 밖 빈 곳을 눌러도 마우스 이벤트가 안 와서 Chart.js가 툴팁을 못 닫음)
+const closeTip = e => {
+  const ch = S.chart; if(!ch || e.target === ch.canvas) return;
+  if(!ch.getActiveElements().length && !ch.tooltip.getActiveElements().length) return;
+  ch.setActiveElements([]); ch.tooltip.setActiveElements([], {x: 0, y: 0}); ch.update('none');
+};
+document.addEventListener('pointerdown', closeTip, {passive: true});
+document.addEventListener('touchstart', closeTip, {passive: true});
 window.addEventListener('resize', () => { clearTimeout(marquee.t); marquee.t = setTimeout(marquee, 150); });
 
 // ---- 랭킹 표 ----
@@ -719,6 +713,26 @@ function setupDragScroll(){
 }
 
 // ---- 추이 그래프 ----
+// 라이브 직후 수집 시각(zt)과 라이브 추정매출(sales). upTo 이후 수집은 보지 않음
+//  sales = 직후 수집 값 - 직전 수집 값 (같은 딜)
+//  직전 수집에 그 딜 값이 없으면: 딜 오픈 뒤·라이브 전에 수집이 한 번 이상 있었는데 그때 순위에 없었을 때만 직후 값 전체 (수집 시작 전 라이브는 제외)
+function liveCalc(pid, liveMs, upTo){
+  const id = String(pid); let z = null, zt = null; const before = [];
+  for(const sn of S.snaps){
+    if(sn.t > upTo) break;
+    const o = sn.rows.find(x => String(x.productId) === id);
+    if(sn.t <= liveMs) before.push({t: sn.t, o});
+    else { z = o && o.sales != null ? o : null; zt = sn.t; break; }
+  }
+  let sales = null;
+  if(z){
+    const zs = ymd(z.dealStart);
+    const prev = before.length ? before[before.length - 1].o : null;
+    if(prev && prev.sales != null && prev.dealStart === z.dealStart) sales = z.sales - prev.sales;
+    else if(zs && zs <= liveMs && before.some(x => x.t >= zs) && !before.some(x => x.o && x.o.dealStart === z.dealStart && x.o.sales != null)) sales = z.sales;
+  }
+  return {zt: z ? zt : null, sales};
+}
 function buckets(){
   // 선택 단위별로 묶고, 각 묶음의 마지막 수집값을 쓴다
   const keyOf = S.gran==='day' ? dayKey : S.gran==='week' ? weekKey : S.gran==='month' ? monthKey : (t => t);
@@ -735,6 +749,7 @@ function drawChart(){
   if(S.chart){ S.chart.destroy(); S.chart = null; }
   const hint = $('#chartHint');
   hint.textContent = S.inRange.length ? '*아래 랭킹 표에서 상품을 눌러 추이에 추가하거나 뺄 수 있습니다. (최대 10개)' : '';
+  $('#liveNote').textContent = '';
   if(!S.inRange.length) return;
   const bs = buckets(), metric = S.metric, ts = terms($('#cq').value);
   // 추이 전용 세부 카테고리 (기간 안에 등장한 상품 기준)
@@ -758,6 +773,16 @@ function drawChart(){
   // 추정매출/주문수: 기간 중 값이 있다가 비는 시점(딜 종료, 100위권 밖)은 마지막 값을 이어서 쓴다 (car = 이어 쓴 점)
   //  같은 상품이 새 딜로 다시 열리면(딜 오픈일자가 다름) 이전 선과 잇지 않는다 (brk = 새 딜 첫 점).
   //  합계도 새 딜이 잡힌 시점부터는 새 딜 값만 (이전 딜 최종값을 더하지 않음)
+  // 라이브 반영 시점: 라이브 뒤 첫 수집이 들어간 칸에 링 표시 (그 칸에 값이 있을 때만). {칸 번호: '라이브 11/11 08:30 (+8백만원)'}
+  const liveMarks = id => {
+    const lives = new Set(); S.snaps.forEach(sn => sn.rows.forEach(r => { if(String(r.productId) === id && r.liveStartAt) lives.add(r.liveStartAt); }));
+    const out = {}, endT = bs[bs.length - 1].snap.t;
+    lives.forEach(ls => { const L = ymd(ls); if(!L) return;
+      const {zt, sales} = liveCalc(id, L, endT); if(zt == null) return;
+      const i = bs.findIndex(b => b.snap.t >= zt); if(i < 0 || !bs[i].map.get(id)) return;
+      out[i] = `라이브 ${mdLab(L).replace(/<[^>]+>/g, '')} ${pad(kparts(L).h)}:${pad(new Date(L + KST).getUTCMinutes())}` + (sales != null ? ` (+${Math.round(sales / 1e6).toLocaleString('ko-KR')}백만원)` : ''); });
+    return Object.keys(out).length ? out : null;
+  };
   const series = id => {
     let last = null, deal; const vals = [], car = [], brk = [];
     bs.forEach(b => { const r = b.map.get(id), v = r ? r[metric] : null;
@@ -799,7 +824,7 @@ function drawChart(){
   if(!datasets) datasets = ids.map(id => { const sr = series(id); return {
     pid: id,
     label: `${product(id).brand||''} · ${(product(id).name||'').slice(0,20)}`,
-    data: sr.vals, car: sr.car.some(Boolean) ? sr.car : null, brk: sr.brk.some(Boolean) ? sr.brk : null
+    data: sr.vals, car: sr.car.some(Boolean) ? sr.car : null, brk: sr.brk.some(Boolean) ? sr.brk : null, live: liveMarks(id)
   }; });
   // TOP 10만: 11위 이하 시점은 맨 아래 '10위 미만' 칸(11)에 점을 찍고, 라벨/툴팁은 실제 순위(d.real)로. 기간 내내 10위 밖인 상품은 빼기
   if(top10){
@@ -818,12 +843,15 @@ function drawChart(){
     });
   });
   const hasOut = datasets.some(d => d.status && d.status.some(Boolean));
+  $('#liveNote').textContent = datasets.some(d => d.live) ? '◎ 라이브 반영 시점 (점을 누르면 라이브 시각과 추정매출이 보입니다)' : '';
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
   const cardC = getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff';
   datasets.forEach((d,i) => { const c = COLORS[i%COLORS.length];
     Object.assign(d, {borderColor:c, backgroundColor:c, tension:0, pointRadius:3, borderWidth:2, spanGaps:false, clip:false});
     // 마지막 값을 이어 쓴 구간: 회색 점선 + 속이 빈 회색 점
     if(d.car) Object.assign(d, {pointBackgroundColor: d.car.map(v => v ? cardC : c), pointBorderColor: d.car.map(v => v ? tick : c)});
+    // 라이브 반영 시점: 점을 크게 (둘레 링은 라벨 플러그인에서 그림)
+    if(d.live) d.pointRadius = bs.map((_, k) => d.live[k] ? 4.5 : 3);
     // 새 딜 첫 점으로 들어가는 선은 그리지 않음
     if(d.car || d.brk) d.segment = {
       borderColor: x => d.brk && d.brk[x.p1DataIndex] ? 'transparent' : d.car && d.car[x.p1DataIndex] ? tick : undefined,
@@ -853,7 +881,12 @@ function drawChart(){
   const cs = getComputedStyle(document.documentElement);
   const upC = cs.getPropertyValue('--up').trim() || '#e5484d', downC = cs.getPropertyValue('--down').trim() || '#2f6fde';
   const deltaLabels = {id:'deltaLabels', afterDatasetsDraw(chart){
-    const ctx = chart.ctx; ctx.save(); ctx.font = '600 10px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    const ctx = chart.ctx; ctx.save();
+    // 라이브 반영 시점 링 (◎)
+    chart.data.datasets.forEach((ds, di) => { const meta = chart.getDatasetMeta(di); if(meta.hidden || !ds.live) return;
+      Object.keys(ds.live).forEach(k => { const pt = meta.data[k]; if(!pt || ds.data[k] == null) return;
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 8.5, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = ds.borderColor; ctx.stroke(); }); });
+    ctx.font = '600 10px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     // 모든 지표에서 점 위에 값(순위/추정매출/주문수), 그 아래에 증감을 표시한다.
     const showVal = true;
     const valTxt = v => metric === 'rank' ? v + '위' : metric === 'sales' ? won(v) : fmt(v);
@@ -868,8 +901,8 @@ function drawChart(){
         const st = ds.status && ds.status[i];
         if(ds.brk && ds.brk[i]) prev = null;   // 새 딜 첫 점은 이전 딜 대비 증감 표시 안 함
         // 마지막 값을 이어 쓴 점은 값만 회색으로 (증감 없음)
-        if(ds.car && ds.car[i]){ items.push({i, v, prev: null, pt: meta.data[i]}); prev = v; return; }
-        items.push({i, v, prev: st ? null : prev, pt: meta.data[i], st});
+        if(ds.car && ds.car[i]){ items.push({i, v, prev: null, pt: meta.data[i], live: !!(ds.live && ds.live[i])}); prev = v; return; }
+        items.push({i, v, prev: st ? null : prev, pt: meta.data[i], st, live: !!(ds.live && ds.live[i])});
         prev = st ? null : v;
       });
     });
@@ -879,7 +912,7 @@ function drawChart(){
     items.forEach(it => { it.h = it.prev != null ? 24 : 12; (byX[it.i] = byX[it.i] || []).push(it); });
     Object.values(byX).forEach(g => {
       g.sort((a, b) => a.pt.y - b.pt.y);
-      g.forEach(it => it.bt = it.pt.y - 6);
+      g.forEach(it => it.bt = it.pt.y - (it.live ? 11 : 6));
       for(let k = g.length - 2; k >= 0; k--) g[k].bt = Math.min(g[k].bt, g[k+1].bt - g[k+1].h - 1);
       if(g[0].bt - g[0].h < area.top - 14){
         g[0].bt = area.top - 14 + g[0].h;
@@ -913,7 +946,8 @@ function drawChart(){
       ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
       tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw, st = c.dataset.status && c.dataset.status[c.dataIndex]; const car = c.dataset.car && c.dataset.car[c.dataIndex] ? ' (딜 종료·순위 밖, 마지막 값)' : c.dataset.carN && c.dataset.carN[c.dataIndex] ? ` (종료된 딜 ${c.dataset.carN[c.dataIndex]}개는 마지막 값으로 포함)` : '';
-        return `${c.dataset.label}: ${raw==null ? (st==='end' ? '딜 종료' : '100위권 밖') : metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}${car}`; }}} }
+        return `${c.dataset.label}: ${raw==null ? (st==='end' ? '딜 종료' : '100위권 밖') : metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}${car}`; },
+        afterLabel: c => c.dataset.live && c.dataset.live[c.dataIndex] ? '  ◎ ' + c.dataset.live[c.dataIndex] : ''}} }
   }});
 }
 

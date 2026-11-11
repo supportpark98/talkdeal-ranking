@@ -460,8 +460,9 @@ async function update(){
   await ensureMonths(S.start, S.end);
   S.inRange = S.snaps.filter(s => s.t >= S.start && s.t <= S.end);
   const multiDay = S.startDay !== S.endDay;
-  $('#gran').style.display = multiDay ? '' : 'none';
-  if(!multiDay) S.gran = 'hour';
+  // 시간/일/주/월 버튼은 항상 표시. 하루 안의 기간으로 새로 바꿨을 때만 기본값을 '시간'으로 (그 뒤 사용자가 고른 단위는 유지)
+  const rk = S.start + '|' + S.end;
+  if(S.rangeKey !== rk){ S.rangeKey = rk; if(!multiDay) S.gran = 'hour'; }
   $$('#gran button').forEach(b => b.classList.toggle('on', b.dataset.g === S.gran));
 
   if(!S.inRange.length){

@@ -61,8 +61,9 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .msel{position:relative;display:inline-block}
 .mselbtn{padding:6px 26px 6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);cursor:pointer;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;position:relative;text-align:left}
 .mselbtn::after{content:'▾';position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted)}
-.mselpop{position:absolute;z-index:30;top:calc(100% + 4px);left:0;min-width:220px;max-height:320px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:6px}
-.mselpop label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;white-space:nowrap;font-size:14px}
+.mselpop{position:absolute;z-index:30;top:calc(100% + 4px);left:0;right:0;box-sizing:border-box;max-height:320px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:6px}
+.mselpop label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;white-space:nowrap;font-size:14px;min-width:0}
+.mselpop .cn{overflow:hidden;text-overflow:ellipsis;min-width:0}
 .mselpop label:hover{background:var(--bg)}
 .mselpop label.all{border-bottom:1px solid var(--line);border-radius:6px 6px 0 0;margin-bottom:4px}
 .mselpop .cnt{color:var(--muted);font-size:12px;margin-left:auto;padding-left:10px}
@@ -99,7 +100,7 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .qwrap{flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px}
 .qwrap input{width:100%;box-sizing:border-box}
 .qrow .lbl{flex:none}
-.mselbtn{min-width:150px}
+.mselbtn{min-width:180px}
 .qnote{font-size:12px;color:var(--muted)}
 .lcol{display:flex;flex-direction:column;gap:4px}
 /* 수집 안내·집계 오류 안내는 필터 줄 아래 전체 폭으로 (왼쪽 묶음이 넓어져 검색창이 밀리고 가운데가 비지 않게) */
@@ -614,7 +615,7 @@ function catLabel(){ const n = S.csub.length; return !n ? '전체' : n === 1 ? S
 function buildCatMenu(cats, cnt){
   const box = $('#csub'), pop = box.querySelector('.mselpop');
   pop.innerHTML = `<label class="all"><input type="checkbox" data-c=""${S.csub.length ? '' : ' checked'}>전체</label>` +
-    cats.map(c => `<label><input type="checkbox" data-c="${esc(c)}"${S.csub.includes(c) ? ' checked' : ''}>${esc(c)}<span class="cnt">${cnt[c]}</span></label>`).join('');
+    cats.map(c => `<label><input type="checkbox" data-c="${esc(c)}"${S.csub.includes(c) ? ' checked' : ''}><span class="cn" title="${esc(c)}">${esc(c)}</span><span class="cnt">${cnt[c]}</span></label>`).join('');
   box.querySelector('.mselbtn').textContent = catLabel();
 }
 function setupCatMenu(onChange){

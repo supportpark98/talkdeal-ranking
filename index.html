@@ -52,6 +52,10 @@ button:disabled{opacity:.5;cursor:default}
 .pickbtns{display:flex;gap:6px}
 .sbtn{font-size:12px;font-weight:600;padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);cursor:pointer}
 .sbtn:hover{background:var(--bg)}
+/* 엑셀 다운로드: 같은 크기, 초록색 + 다운로드 아이콘 */
+.sbtn.xl{display:inline-flex;align-items:center;gap:5px;background:#1f7a4d;border-color:#1f7a4d;color:#fff}
+.sbtn.xl:hover{background:#18643f}
+.sbtn.xl:disabled{opacity:.7;cursor:default}
 button.textbtn{border:none;background:none;color:var(--muted);font-size:12px;padding:4px 6px;margin-left:4px}
 button.textbtn:hover{color:var(--text);text-decoration:underline}
 .seg{display:inline-flex;gap:0}
@@ -225,7 +229,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
 
   <section class="card">
     <h2><span class="ttl">랭킹<span class="pickbtns"><button id="pick10" class="sbtn" type="button">상위 10개 선택</button><button id="pickNone" class="sbtn" type="button">전체 선택 해제</button></span></span>
-      <button id="xlsx" class="sbtn" type="button">엑셀 다운로드</button>
+      <button id="xlsx" class="sbtn xl" type="button"><svg class="dl" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 2v8m0 0L4.5 6.5M8 10l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>엑셀 다운로드</span></button>
     </h2>
     <div class="hint" id="cmp"></div>
     <div class="tablewrap">
@@ -1017,7 +1021,7 @@ function drawChart(){
 function loadScript(src){ return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
 async function downloadXlsx(){
   if(!S.cur) return;
-  const btn = $('#xlsx'); btn.disabled = true; btn.textContent = '만드는 중…';
+  const btn = $('#xlsx'); btn.disabled = true; btn.querySelector('span').textContent = '만드는 중…';
   try{
     if(typeof XLSX === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
     const dt = ms => { if(ms==null) return null; const p = kparts(ms); return `${p.y}-${pad(p.m)}-${pad(p.d)} ${pad(p.h)}:${pad(new Date(ms + KST).getUTCMinutes())}`; };
@@ -1041,7 +1045,7 @@ async function downloadXlsx(){
     const f = ms => { const p = kparts(ms); return `${p.y}${pad(p.m)}${pad(p.d)}-${pad(p.h)}`; };
     XLSX.writeFile(wb, `톡딜랭킹_${S.cat.name.replace('/','')}_${f(S.inRange[0].t)}_${f(S.cur.t)}.xlsx`);
   }catch(e){ alert('엑셀 파일을 만들지 못했어요: ' + e.message); }
-  btn.disabled = false; btn.textContent = '엑셀 다운로드';
+  btn.disabled = false; btn.querySelector('span').textContent = '엑셀 다운로드';
 }
 
 // ---- 시작 ----

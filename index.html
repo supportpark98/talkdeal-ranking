@@ -479,9 +479,11 @@ async function update(){
     const DEAL_KEYS = ['price','discountRate','ordering','originalPrice','maxBenefitPrice','liveStartAt','dealStart','dealEnd','sales'];
     S.cur.rows.forEach(r => {
       if(r.ordering != null) return;
-      for(let i = S.inRange.length - 2; i >= 0; i--){
-        const o = S.inRange[i].rows.find(x => x.productId === r.productId && x.ordering != null);
-        if(o){ DEAL_KEYS.forEach(k => r[k] = o[k]); r.endedAt = S.inRange[i].t; break; }
+      // 조회 기간 앞의 수집분까지 거슬러 올라가 그 상품의 가장 최근 딜 값을 찾는다 (예: 11/11 9시만 볼 때 전날 23시 값)
+      for(let i = S.snaps.length - 1; i >= 0; i--){
+        if(S.snaps[i].t >= S.cur.t) continue;
+        const o = S.snaps[i].rows.find(x => x.productId === r.productId && x.ordering != null);
+        if(o){ DEAL_KEYS.forEach(k => r[k] = o[k]); r.endedAt = S.snaps[i].t; break; }
       }
     });
     // 기간 중 딜로 순위에 있었는데 종료 시점엔 100위 밖인 상품도 표에 넣는다 (추이 합계와 같은 기준)
@@ -823,9 +825,14 @@ function drawChart(){
       out[i] = (sum ? `${product(id).brand || ''} · ${(product(id).name || '').slice(0, 14)} ` : '') + `라이브 ${mdLab(L).replace(/<[^>]+>/g, '')} ${pad(kparts(L).h)}:${pad(new Date(L + KST).getUTCMinutes())}` + (sales != null ? ` (+${Math.round(sales / 1e6).toLocaleString('ko-KR')}백만원)` : ''); });
     return Object.keys(out).length ? out : null;
   };
+  // 기간 시작 전 마지막 값: 기간 안에 순위엔 있는데 딜이 이미 끝나 값이 비면 이 값을 회색으로 이어 씀 (표의 '딜 종료' 줄과 같은 값)
+  const t0 = bs.length ? S.inRange[0].t : 0;
+  const preVal = id => { for(let i = S.snaps.length - 1; i >= 0; i--){ const sn = S.snaps[i]; if(sn.t >= t0) continue;
+    const o = sn.rows.find(x => String(x.productId) === id && x[metric] != null); if(o) return o[metric]; } return null; };
   const series = id => {
-    let last = null, deal; const vals = [], car = [], brk = [];
+    let last = null, deal, pre; const vals = [], car = [], brk = [];
     bs.forEach(b => { const r = b.map.get(id), v = r ? r[metric] : null;
+      if(v == null && r && last == null && metric !== 'rank'){ if(pre === undefined) pre = preVal(id); if(pre != null) last = pre; }
       if(v != null){
         const nb = metric !== 'rank' && last != null && r.dealStart && deal && r.dealStart !== deal;
         last = v; deal = r.dealStart; vals.push(v); car.push(false); brk.push(nb);

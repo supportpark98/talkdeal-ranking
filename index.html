@@ -108,7 +108,8 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .searchbar .grp{min-height:34px}
 .qwrap{flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px}
 .qwrap input{width:100%;box-sizing:border-box}
-.qrow .lbl{flex:none}
+.qrow .lbl{flex:none;width:28px}
+.qwrap > .qnote{padding-left:41px}
 .mselbtn{min-width:180px}
 .qnote{font-size:12px;color:var(--muted)}
 .lcol{display:flex;flex-direction:column;gap:4px}
@@ -158,6 +159,7 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
   .mselpop label{font-size:13px}
   .qwrap{width:100%;min-width:0}
   .qrow{display:grid !important;grid-template-columns:30px 1fr;gap:5px}
+  .qwrap > .qnote{padding-left:42px}
 }
 .chartbar{align-items:center;margin-top:6px}
 .chartbar .hint{margin:0 auto 0 0}
@@ -227,7 +229,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
 <body>
 <header>
   <div class="wrap">
-    <h1><img class="logo" src="icon.svg" alt="" width="26" height="26">카카오 톡딜 랭킹 대시보드</h1><div class="sub" id="basis">불러오는 중…</div><div class="sub sub2">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</div>
+    <h1><img class="logo" src="icon.svg" alt="" width="26" height="26">카카오 톡딜 랭킹 대시보드</h1><div class="sub" id="basis">불러오는 중…</div><div class="sub sub2">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</div><div class="sub sub2 anote" id="chartNote"></div>
     <nav class="tabs" id="cattabs" role="tablist" aria-label="카테고리"></nav>
   </div>
 </header>
@@ -249,7 +251,6 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <span class="grp"><span class="lbl">스토어</span><span class="msel" id="ssub"><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden></div></span></span></span></span>
       <span class="qwrap"><span class="grp qrow"><span class="lbl">검색</span><input id="cq" type="search" placeholder="스토어명, 키워드 또는 상품코드 검색"></span><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
-    <div class="lnotes"><span class="qnote anote" id="chartNote"></span></div>
     <div class="rangeinfo" id="rangeinfo"></div>
   </section>
 

@@ -116,6 +116,34 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .toolbar label.chk{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
 .anote:empty{display:none}
+/* 필터 컨트롤 통일: 날짜·톡딜상품 여부·카테고리·검색·빠른 기간 버튼 모두 높이 34px, 글자 14px, 같은 화살표 */
+.range select,.range .quick button,#deal,.mselbtn,#cq{height:34px;box-sizing:border-box;font-size:14px;line-height:20px;border-radius:8px}
+.range select,#deal,.mselbtn{appearance:none;-webkit-appearance:none;padding:6px 26px 6px 10px;background:var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8f98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 9px center/10px 6px}
+.mselbtn::after{content:none}
+#deal,.mselbtn{width:180px;min-width:0;max-width:none}
+.range .quick button{padding:6px 12px}
+.range .grp > span[id$=Pick]{display:inline-flex;gap:4px}
+/* 모바일: 날짜는 열을 맞춘 격자, 빠른 기간은 꽉 찬 4등분, 필터 2칸은 같은 너비 */
+@media (max-width:640px){
+  .range{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+  .range .grp{display:grid;grid-template-columns:28px 1.4fr 1fr 1fr 1fr 26px;gap:4px;align-items:center}
+  .range .grp > span[id$=Pick]{display:contents}
+  .range .lbl,.searchbar .lbl{margin-right:0}
+  .range select{width:100%;min-width:0;font-size:13px;padding:6px 15px 6px 6px;background-position:right 5px center;background-size:8px 5px}
+  #reset{margin:0;padding:0;height:34px;font-size:16px}
+  #reset .rtx{display:none}
+  .range .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-left:0}
+  .range .quick button{padding:6px 0;white-space:nowrap;font-size:13px}
+  .searchbar{flex-direction:column;align-items:stretch;gap:8px}
+  .lcol,.lrow{width:100%}
+  .lrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .lrow .grp{flex-direction:column;align-items:stretch;gap:4px}
+  .lrow .msel{display:block}
+  #deal,.mselbtn{width:100%}
+  #deal,.mselbtn,#cq{font-size:13px}
+  .qwrap{width:100%;min-width:0}
+  .qrow{display:grid !important;grid-template-columns:30px 1fr;gap:5px}
+}
 .chartbar{align-items:center;margin-top:6px}
 .chartbar .hint{margin:0 auto 0 0}
 .tablewrap{overflow-x:auto}
@@ -186,7 +214,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   <section class="card">
     <div class="range">
       <div class="grp"><span class="lbl">시작</span><span id="startPick"></span></div>
-      <div class="grp"><span class="lbl">종료</span><span id="endPick"></span><button id="reset" class="textbtn" title="최근 1일(어제 첫 수집 ~ 최근 수집)로 되돌리기">↺ 초기화</button></div>
+      <div class="grp"><span class="lbl">종료</span><span id="endPick"></span><button id="reset" class="textbtn" title="최근 1일(어제 첫 수집 ~ 최근 수집)로 되돌리기" aria-label="초기화">↺<span class="rtx"> 초기화</span></button></div>
       <div class="quick">
         <button data-q="1d">최근 1일</button>
         <button data-q="7">최근 7일</button>

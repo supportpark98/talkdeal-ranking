@@ -752,18 +752,17 @@ function drawChart(){
   let ids, datasets;
   // 추정매출/주문수: 기간 중 값이 있다가 비는 시점(딜 종료, 100위권 밖)은 마지막 값을 이어서 쓴다 (car = 이어 쓴 점)
   //  같은 상품이 새 딜로 다시 열리면(딜 오픈일자가 다름) 이전 선과 잇지 않는다 (brk = 새 딜 첫 점).
-  //  합계용 tot: 끝난 이전 딜의 최종값 + 지금 딜 값 (기간 전체 합계에서 이전 딜 매출이 사라지지 않게)
+  //  합계도 새 딜이 잡힌 시점부터는 새 딜 값만 (이전 딜 최종값을 더하지 않음)
   const series = id => {
-    let last = null, deal, done = 0; const vals = [], car = [], brk = [], tot = [];
+    let last = null, deal; const vals = [], car = [], brk = [];
     bs.forEach(b => { const r = b.map.get(id), v = r ? r[metric] : null;
       if(v != null){
         const nb = metric !== 'rank' && last != null && r.dealStart && deal && r.dealStart !== deal;
-        if(nb) done += last;
-        last = v; deal = r.dealStart; vals.push(v); car.push(false); brk.push(nb); tot.push(done + v);
+        last = v; deal = r.dealStart; vals.push(v); car.push(false); brk.push(nb);
       }
-      else if(metric !== 'rank' && last != null){ vals.push(last); car.push(true); brk.push(false); tot.push(done + last); }
-      else { vals.push(null); car.push(false); brk.push(false); tot.push(null); } });
-    return {vals, car, brk, tot};
+      else if(metric !== 'rank' && last != null){ vals.push(last); car.push(true); brk.push(false); }
+      else { vals.push(null); car.push(false); brk.push(false); } });
+    return {vals, car, brk};
   };
   if(q){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
@@ -777,7 +776,7 @@ function drawChart(){
       // 검색어마다 합계 선 하나씩 (예: 브랜드끼리 비교)
       // 끝난 딜도 마지막 값으로 합계에 넣는다 (기간 전체 합계에서 빠지지 않게). carN = 그 시점 합계에 마지막 값으로 들어간 상품 수
       const sumOf = ms => { const ss = ms.map(series), carN = bs.map((_, i) => ss.filter(x => x.car[i]).length);
-        const data = bs.map((_, i) => { let sum = 0, any = false; ss.forEach(x => { if(x.tot[i] != null){ sum += x.tot[i]; any = true; } }); return any ? sum : null; });
+        const data = bs.map((_, i) => { let sum = 0, any = false; ss.forEach(x => { if(x.vals[i] != null){ sum += x.vals[i]; any = true; } }); return any ? sum : null; });
         return {data, carN}; };
       datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ...sumOf(ms)}; })
         : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, ...sumOf(match)}];

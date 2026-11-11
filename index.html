@@ -244,6 +244,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   추정매출 = 수집할 때마다 늘어난 주문수 × 그때의 톡딜가를 더한 값 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로, 옵션별 가격 차이는 반영되지 않은 추정치)<br>
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
   딜 종료 = 조회 기간 중 진행됐지만 종료 시점에는 끝난 딜. 딜 정보·추정매출·주문수·가격은 그 딜의 마지막 수집값<br>
+  추이의 회색 점선 = 딜이 끝났거나 100위권 밖으로 빠져 값이 없는 시점. 추정매출·주문수의 마지막 값을 이어서 표시하고 합계에도 포함<br>
   일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
 </footer>
 <button id="toTop" type="button" aria-label="맨 위로" title="맨 위로">↑</button>
@@ -720,6 +721,15 @@ function drawChart(){
   $('#top10Wrap').style.display = metric === 'rank' ? '' : 'none';
   const top10 = metric === 'rank' && $('#top10').checked;
   let ids, datasets;
+  // 추정매출/주문수: 기간 중 값이 있다가 비는 시점(딜 종료, 100위권 밖)은 마지막 값을 이어서 쓴다 (car = 이어 쓴 점)
+  const series = id => {
+    let last = null; const vals = [], car = [];
+    bs.forEach(b => { const r = b.map.get(id), v = r ? r[metric] : null;
+      if(v != null){ last = v; vals.push(v); car.push(false); }
+      else if(metric !== 'rank' && last != null){ vals.push(last); car.push(true); }
+      else { vals.push(null); car.push(false); } });
+    return {vals, car};
+  };
   if(q){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
     const txt = id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')+' '+id).toLowerCase(); };
@@ -730,9 +740,12 @@ function drawChart(){
     match.sort((a,b)=>{ const x = lastRank(a), y = lastRank(b); return x[0]-y[0] || x[1]-y[1]; });
     if(sumMode && metric !== 'rank'){
       // 검색어마다 합계 선 하나씩 (예: 브랜드끼리 비교)
-      const sumOf = ms => bs.map(b => { let sum = 0, any = false; ms.forEach(id => { const r = b.map.get(id); if(r && r[metric]!=null){ sum += r[metric]; any = true; } }); return any ? sum : null; });
-      datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, data: sumOf(ms)}; })
-        : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, data: sumOf(match)}];
+      // 끝난 딜도 마지막 값으로 합계에 넣는다 (기간 전체 합계에서 빠지지 않게). carN = 그 시점 합계에 마지막 값으로 들어간 상품 수
+      const sumOf = ms => { const ss = ms.map(series), carN = bs.map((_, i) => ss.filter(x => x.car[i]).length);
+        const data = bs.map((_, i) => { let sum = 0, any = false; ss.forEach(x => { if(x.vals[i] != null){ sum += x.vals[i]; any = true; } }); return any ? sum : null; });
+        return {data, carN}; };
+      datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ...sumOf(ms)}; })
+        : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, ...sumOf(match)}];
     } else {
       // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 종료 시점 순위 상위 5개
       // TOP 10만 표시면 기간 중 10위 안에 든 적 있는 상품 중에서 고른다 (안 그러면 고른 5개 중 일부가 그래프에서 빠집)
@@ -744,11 +757,11 @@ function drawChart(){
     ids = S.picked;
   }
   S.shown = ids || [];
-  if(!datasets) datasets = ids.map(id => ({
+  if(!datasets) datasets = ids.map(id => { const sr = series(id); return {
     pid: id,
     label: `${product(id).brand||''} · ${(product(id).name||'').slice(0,20)}`,
-    data: bs.map(b => { const r = b.map.get(id); return r ? r[metric] : null; })
-  }));
+    data: sr.vals, car: sr.car.some(Boolean) ? sr.car : null
+  }; });
   // TOP 10만: 11위 이하 시점은 맨 아래 '10위 미만' 칸(11)에 점을 찍고, 라벨/툴팁은 실제 순위(d.real)로. 기간 내내 10위 밖인 상품은 빼기
   if(top10){
     datasets = datasets.filter(d => d.data.some(v => v != null && v <= 10));
@@ -766,8 +779,15 @@ function drawChart(){
     });
   });
   const hasOut = datasets.some(d => d.status && d.status.some(Boolean));
-  datasets.forEach((d,i) => Object.assign(d, {borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length], tension:0, pointRadius:3, borderWidth:2, spanGaps:false, clip:false}));
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
+  const cardC = getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff';
+  datasets.forEach((d,i) => { const c = COLORS[i%COLORS.length];
+    Object.assign(d, {borderColor:c, backgroundColor:c, tension:0, pointRadius:3, borderWidth:2, spanGaps:false, clip:false});
+    // 마지막 값을 이어 쓴 구간: 회색 점선 + 속이 빈 회색 점
+    if(d.car) Object.assign(d, {
+      segment:{borderColor: x => d.car[x.p1DataIndex] ? tick : undefined, borderDash: x => d.car[x.p1DataIndex] ? [4, 4] : undefined},
+      pointBackgroundColor: d.car.map(v => v ? cardC : c), pointBorderColor: d.car.map(v => v ? tick : c)});
+  });
   // 순위 축: 실제 그려진 순위 범위에 맞추고 위아래로 반 칸 여백, 눈금은 정수만
   const rs = top10 ? [1, 11] : datasets.flatMap(d => d.data).filter(v => v != null);
   const rMin = rs.length ? Math.min(...rs) : 1, rMax = rs.length ? Math.max(...rs) : 10;
@@ -805,6 +825,7 @@ function drawChart(){
         if(v0 == null) return;
         const v = ds.real ? ds.real[i] : v0;   // TOP 10 모드에선 점 위치와 별개로 실제 순위로 표시
         const st = ds.status && ds.status[i];
+        if(ds.car && ds.car[i]){ prev = v; return; }   // 마지막 값을 이어 쓴 점은 라벨 생략 (툴팁으로 확인)
         items.push({i, v, prev: st ? null : prev, pt: meta.data[i], st});
         prev = st ? null : v;
       });
@@ -848,7 +869,8 @@ function drawChart(){
       beforeCalculateLabelRotation: sc => { const n = sc.max - sc.min, pad = n > 0 ? n/(n)*0.25 : 0.5; sc._startValue = sc.min - pad; sc._endValue = sc.max + pad; sc._valueRange = n + 2*pad; },
       ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
     plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
-      tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw, st = c.dataset.status && c.dataset.status[c.dataIndex]; return `${c.dataset.label}: ${raw==null ? (st==='end' ? '딜 종료' : '100위권 밖') : metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}`; }}} }
+      tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw, st = c.dataset.status && c.dataset.status[c.dataIndex]; const car = c.dataset.car && c.dataset.car[c.dataIndex] ? ' (딜 종료·순위 밖, 마지막 값)' : c.dataset.carN && c.dataset.carN[c.dataIndex] ? ` (종료된 딜 ${c.dataset.carN[c.dataIndex]}개는 마지막 값으로 포함)` : '';
+        return `${c.dataset.label}: ${raw==null ? (st==='end' ? '딜 종료' : '100위권 밖') : metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}${car}`; }}} }
   }});
 }
 

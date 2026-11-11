@@ -747,6 +747,26 @@ function liveCalc(pid, liveMs, upTo){
   }
   return {zt: z ? zt : null, sales};
 }
+// 라이브 표시 켜기/끄기: 차트는 그대로 두고 링만 페이드로 나타나거나 사라지게 (약 0.35초)
+function toggleLive(){
+  const ch = S.chart, on = $('#liveChk').checked;
+  if(!ch){ drawChart(); return; }
+  const ds = ch.data.datasets, any = ds.some(d => d._live);
+  const NOTE = '*◎ 표시는 라이브 반영 시점입니다. (점을 누르면 라이브 시각과 추정매출이 보입니다)';
+  const apply = v => ds.forEach(d => { d.live = v ? d._live : null;
+    d.pointRadius = d.live ? d.data.map((_, k) => d.live[k] ? 4.5 : 3) : 3; });
+  cancelAnimationFrame(S.liveRaf);
+  if(on){ apply(true); $('#liveNote').textContent = any ? NOTE : ''; }
+  else $('#liveNote').textContent = '';
+  if(!any){ apply(on); ch.update('none'); return; }
+  const from = on ? 0 : 1, to = on ? 1 : 0, t0 = performance.now(), D = 350;
+  S.liveA = from; ch.update('none');
+  const step = now => { const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3);
+    S.liveA = from + (to - from) * e; ch.draw();
+    if(k < 1) S.liveRaf = requestAnimationFrame(step);
+    else if(!on){ apply(false); S.liveA = 1; ch.update('none'); } };
+  S.liveRaf = requestAnimationFrame(step);
+}
 function buckets(){
   // 선택 단위별로 묶고, 각 묶음의 마지막 수집값을 쓴다
   const keyOf = S.gran==='day' ? dayKey : S.gran==='week' ? weekKey : S.gran==='month' ? monthKey : (t => t);
@@ -866,7 +886,9 @@ function drawChart(){
       return 'out';
     });
   });
-  if(!$('#liveChk').checked) datasets.forEach(d => { d.live = null; });
+  // 라이브 표시 정보는 항상 계산해 두고(_live), 체크박스가 켜져 있을 때만 보여 준다 (켜고 끌 때 차트를 다시 그리지 않으려고)
+  datasets.forEach(d => { d._live = d.live || null; if(!$('#liveChk').checked) d.live = null; });
+  S.liveA = 1;
   const hasOut = datasets.some(d => d.status && d.status.some(Boolean));
   $('#liveNote').textContent = datasets.some(d => d.live) ? '*◎ 표시는 라이브 반영 시점입니다. (점을 누르면 라이브 시각과 추정매출이 보입니다)' : '';
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
@@ -910,7 +932,8 @@ function drawChart(){
     // 라이브 반영 시점 링 (◎)
     chart.data.datasets.forEach((ds, di) => { const meta = chart.getDatasetMeta(di); if(meta.hidden || !ds.live) return;
       Object.keys(ds.live).forEach(k => { const pt = meta.data[k]; if(!pt || ds.data[k] == null) return;
-        ctx.beginPath(); ctx.arc(pt.x, pt.y, 8.5, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = ds.borderColor; ctx.stroke(); }); });
+        const a = S.liveA == null ? 1 : S.liveA;   // 켜고 끌 때 페이드 + 링이 살짝 퍼지며 나타남
+        ctx.globalAlpha = a; ctx.beginPath(); ctx.arc(pt.x, pt.y, 4.5 + 4 * a, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = ds.borderColor; ctx.stroke(); ctx.globalAlpha = 1; }); });
     ctx.font = '600 10px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     // 모든 지표에서 점 위에 값(순위/추정매출/주문수), 그 아래에 증감을 표시한다.
     const showVal = true;
@@ -1038,7 +1061,7 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   
-  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart; $('#liveChk').onchange = drawChart;
+  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart; $('#liveChk').onchange = toggleLive;
   $('#xlsx').onclick = downloadXlsx;
   $$('#cols col').forEach(c => c.dataset.w = c.style.width);
   setupResize();

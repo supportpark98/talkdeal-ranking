@@ -750,12 +750,18 @@ function liveCalc(pid, liveMs, upTo){
 function buckets(){
   // 선택 단위별로 묶고, 각 묶음의 마지막 수집값을 쓴다
   const keyOf = S.gran==='day' ? dayKey : S.gran==='week' ? weekKey : S.gran==='month' ? monthKey : (t => t);
-  const m = new Map();
-  S.inRange.forEach(s => m.set(keyOf(s.t), s));
-  return [...m.entries()].map(([k, s]) => {
+  // 추정매출·주문수: 묶음 안에서 상품마다 가장 최근에 수집된 값 (예: 9일 23시엔 순위 밖이어도 16시 값이 있으면 그 값)
+  //  순위: 묶음 마지막 수집 시점의 순위 그대로 (그때 없으면 100위권 밖)
+  const m = new Map(), latest = S.gran !== 'hour' && S.metric !== 'rank';
+  S.inRange.forEach(s => { const k = keyOf(s.t), g = m.get(k) || {map: new Map()}; g.s = s;
+    if(latest) s.rows.forEach(r => { if(r[S.metric] != null) g.map.set(String(r.productId), r); });
+    m.set(k, g); });
+  return [...m.entries()].map(([k, {s, map}]) => {
     const p = kparts(k);
     const label = S.gran==='day' ? `${p.m}/${p.d}` : S.gran==='week' ? `${p.m}/${p.d}주` : S.gran==='month' ? `${String(p.y).slice(2)}년 ${p.m}월` : slotLab(s.t);
-    return {label, snap: s, map: new Map(s.rows.map(r=>[String(r.productId), r]))};
+    const mp = new Map(s.rows.map(r=>[String(r.productId), r]));
+    if(latest) map.forEach((r, id) => { const c = mp.get(id); if(!c || c[S.metric] == null) mp.set(id, r); });
+    return {label, snap: s, map: mp};
   });
 }
 function drawChart(){

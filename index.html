@@ -821,28 +821,41 @@ function liveCalc(pid, liveMs, upTo){
 // 라이브 표시 켜기/끄기: 차트는 그대로 두고 링만 페이드로 나타나거나 사라지게 (약 0.35초)
 // 진행 중인 딜만 보기: 표와 추이는 그대로 두고 끝난 딜 줄·선만 서서히 사라지게 (끄면 다시 서서히 나타남)
 function toggleLiveOnly(){
-  const on = $('#liveOnly').checked, D = 300, dead = id => !S.liveIds.has(String(id));
+  // 차트를 새로 그리지 않고, 끝난 딜 선을 숨기는 전환 하나로: 선이 흐려지는 동안 축 범위·남은 선 위치도 함께 부드럽게 바뀜
+  const on = $('#liveOnly').checked, D = 500, dead = id => !S.liveIds.has(String(id));
   cancelAnimationFrame(S.loRaf); clearTimeout(S.loT);
   const colors = () => { S.keepColors = {}; if(S.chart) S.chart.data.datasets.forEach(d => { if(d.pid) S.keepColors[d.pid] = d.borderColor; }); };
-  const fade = (from, to) => { const ch = S.chart; if(!ch || ch.data.datasets.some(d => !d.pid)) return;
-    const ds = ch.data.datasets.filter(d => dead(d.pid)); if(!ds.length) return;
-    const t0 = performance.now(), step = now => { const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3);
-      if(S.chart !== ch) return; ds.forEach(d => d._fa = from + (to - from) * e); ch.draw(); if(k < 1) S.loRaf = requestAnimationFrame(step); };
-    ds.forEach(d => d._fa = from); ch.draw(); S.loRaf = requestAnimationFrame(step); };
+  const perLine = c => c && !c.data.datasets.some(d => !d.pid);   // 합계 모드는 그냥 다시 그림
+  const deadIdx = c => c.data.datasets.map((d, i) => dead(d.pid) ? i : -1).filter(i => i >= 0);
+  const anim = c => { c.options.animation = {duration: D, easing: 'easeOutCubic'};
+    c.options.transitions = {show: {animation: {duration: D, easing: 'easeOutCubic'}}, hide: {animation: {duration: D, easing: 'easeOutCubic'}}}; };
+  const fade = (c, ds, from, to) => { const t0 = performance.now();
+    const step = now => { if(S.chart !== c) return; const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3);
+      ds.forEach(d => d._fa = from + (to - from) * e); c.draw(); if(k < 1) S.loRaf = requestAnimationFrame(step); else ds.forEach(d => { if(to === 1) d._fa = null; }); };
+    S.loRaf = requestAnimationFrame(step); };
   if(on){
     S.loSave = (S.shown || []).slice(); S.keepPick = S.loSave.filter(id => !dead(id));
     $$('#rows tr[data-id]').forEach(tr => { if(dead(tr.dataset.id)) tr.classList.add('lofade'); });
-    fade(1, 0);
-    S.loT = setTimeout(() => { cancelAnimationFrame(S.loRaf); colors(); tiles(); drawChart(); render(); }, D);
+    const c = S.chart;
+    if(perLine(c)){ const idx = deadIdx(c);
+      if(idx.length){ anim(c); const ds = idx.map(i => c.data.datasets[i]); ds.forEach(d => { d._gone = true; d._fa = 1; });
+        idx.forEach(i => c.hide(i)); fade(c, ds, 1, 0); } }
+    // 전환이 끝나면 같은 모습 그대로(애니메이션 없이) 새 상태로 정리
+    S.loT = setTimeout(() => { cancelAnimationFrame(S.loRaf); colors(); S.noAnim = true; tiles(); drawChart(); render(); }, D + 40);
   } else {
     const cur = (S.shown || []).slice();
     // 원래 순서대로 되돌려서 색도 처음과 같게 (켜 둔 동안 새로 고른 상품은 뒤에)
     const base = (S.loSave || []).filter(id => dead(id) || cur.includes(id));
     S.keepPick = [...base, ...cur.filter(id => !base.includes(id))].slice(0, MAXPICK); S.loSave = null;
-    colors(); if(base.length) Object.keys(S.keepColors).forEach(k => delete S.keepColors[k]);
-    tiles(); drawChart(); render();
+    colors(); if(base.length) S.keepColors = null;
+    S.noAnim = true; tiles(); drawChart(); render();
     $$('#rows tr[data-id]').forEach(tr => { if(dead(tr.dataset.id)) tr.classList.add('loin'); });
-    fade(0, 1);
+    const c = S.chart;
+    if(perLine(c)){ const idx = deadIdx(c);
+      if(idx.length){ const ds = idx.map(i => c.data.datasets[i]);
+        // 먼저 지금 화면(끝난 딜 없는 상태)과 똑같이 맞춘 뒤, 선을 다시 보이게 하는 전환 하나로
+        ds.forEach(d => { d._gone = true; d._fa = 0; }); idx.forEach(i => c.setDatasetVisibility(i, false)); c.update('none');
+        anim(c); ds.forEach(d => d._gone = false); idx.forEach(i => c.show(i)); fade(c, ds, 0, 1); } }
   }
 }
 function toggleLive(){
@@ -998,7 +1011,7 @@ function drawChart(){
   $('#liveNote').textContent = datasets.some(d => d.live) ? '*◎ 표시는 라이브 반영 시점입니다. (점을 누르면 라이브 시각과 추정매출이 보입니다)' : '';
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
   const cardC = getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff';
-  const kc = S.keepColors; S.keepColors = null;   // 진행 중인 딜만 보기 토글 직후: 남는 선은 원래 색 그대로
+  const kc = S.keepColors; S.keepColors = null; const noAnim = S.noAnim; S.noAnim = false;   // 진행 중인 딜만 보기 토글 직후: 남는 선은 원래 색 그대로
   datasets.forEach((d,i) => { const c = (kc && d.pid && kc[d.pid]) || COLORS[i%COLORS.length];
     Object.assign(d, {borderColor:c, backgroundColor:c, tension:0, pointRadius:3, borderWidth:2, spanGaps:false, clip:false});
     // 마지막 값을 이어 쓴 구간: 회색 점선 + 속이 빈 회색 점
@@ -1039,10 +1052,10 @@ function drawChart(){
   const deltaLabels = {id:'deltaLabels', afterDatasetsDraw(chart){
     const ctx = chart.ctx; ctx.save();
     // 라이브 반영 시점 링 (◎)
-    chart.data.datasets.forEach((ds, di) => { const meta = chart.getDatasetMeta(di); if(meta.hidden || !ds.live) return;
+    chart.data.datasets.forEach((ds, di) => { const meta = chart.getDatasetMeta(di); if((meta.hidden && !(ds._fa > 0)) || !ds.live) return;
       Object.keys(ds.live).forEach(k => { const pt = meta.data[k]; if(!pt || ds.data[k] == null) return;
         const a = S.liveA == null ? 1 : S.liveA;   // 켜고 끌 때 페이드 + 링이 살짝 퍼지며 나타남
-        ctx.globalAlpha = a; ctx.beginPath(); ctx.arc(pt.x, pt.y, 4.5 + 4 * a, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = ds.borderColor; ctx.stroke(); ctx.globalAlpha = 1; }); });
+        ctx.globalAlpha = a * (ds._fa == null ? 1 : ds._fa); ctx.beginPath(); ctx.arc(pt.x, pt.y, 4.5 + 4 * a, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = ds.borderColor; ctx.stroke(); ctx.globalAlpha = 1; }); });
     ctx.font = '600 10px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     // 모든 지표에서 점 위에 값(순위/추정매출/주문수), 그 아래에 증감을 표시한다.
     const showVal = true;
@@ -1050,7 +1063,7 @@ function drawChart(){
     // 같은 시점에서 라벨이 겹치면 위로 밀어 올린다 (아래쪽 점부터 자리를 잡아서, 각 라벨이 자기 점에 최대한 가깝게)
     const items = [];
     chart.data.datasets.forEach((ds, di) => {
-      const meta = chart.getDatasetMeta(di); if(meta.hidden) return;
+      const meta = chart.getDatasetMeta(di); if(meta.hidden && !(ds._fa > 0)) return;
       let prev = null;
       ds.data.forEach((v0, i) => {
         if(v0 == null) return;
@@ -1096,12 +1109,12 @@ function drawChart(){
     ctx.restore();
   }};
   S.chart = new Chart($('#chart'), {type:'line', data:{labels: bs.map(b=>b.label), datasets}, plugins:[deltaLabels, fadePlug], options:{
-    responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false}, layout:{padding:{top: 32, left:4, right:20}},
+    responsive:true, maintainAspectRatio:false, animation: noAnim ? {duration:0} : {}, interaction:{mode:'nearest',intersect:false}, layout:{padding:{top: 32, left:4, right:20}},
     scales:{ y: metric==='rank' ? yRank : yVal, x:{offset:false,
       // 양끝 여백: 점이 1개면 가운데, 2개 이상이면 점 간격의 1/4
       beforeCalculateLabelRotation: sc => { const n = sc.max - sc.min, pad = n > 0 ? n/(n)*0.25 : 0.5; sc._startValue = sc.min - pad; sc._endValue = sc.max + pad; sc._valueRange = n + 2*pad; },
       ticks:{color:tick, maxRotation:0, autoSkip:true}, grid:{display:false}} },
-    plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}}},
+    plugins:{ legend:{position:'bottom', labels:{color:tick, boxWidth:10, font:{size:11}, filter:(it, data) => !data.datasets[it.datasetIndex]._gone}},
       tooltip:{callbacks:{label:c=>{ const raw = c.dataset.real ? c.dataset.real[c.dataIndex] : c.raw, st = c.dataset.status && c.dataset.status[c.dataIndex]; const car = c.dataset.car && c.dataset.car[c.dataIndex] ? ' (딜 종료·순위 밖, 마지막 값)' : c.dataset.carN && c.dataset.carN[c.dataIndex] ? ` (종료된 딜 ${c.dataset.carN[c.dataIndex]}개는 마지막 값으로 포함)` : '';
         return `${c.dataset.label}: ${raw==null ? (st==='end' ? '딜 종료' : '100위권 밖') : metric==='rank' ? raw+'위' : metric==='sales' ? won(raw)+'원' : fmt(raw)}${car}`; },
         afterLabel: c => { const l = c.dataset.live && c.dataset.live[c.dataIndex]; return !l ? '' : [].concat(l).map(t => '  ◎ ' + t); }}} }

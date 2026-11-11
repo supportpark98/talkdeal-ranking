@@ -493,8 +493,9 @@ async function update(){
     r.liveMs = ymd(r.liveStartAt);
     r.baseRank = b ? b.rank : null;
     r.chg = !S.base ? 0 : b ? b.rank - r.rank : 999;  // 999 = 신규
-    r.dOrdering = b && r.ordering!=null && b.ordering!=null ? r.ordering - b.ordering : null;
-    r.dSales = b && r.sales!=null && b.sales!=null ? r.sales - b.sales : null;
+    // 끝난 딜(마지막 딜 값으로 채운 줄)은 증감을 표시하지 않는다
+    r.dOrdering = !r.endedAt && b && r.ordering!=null && b.ordering!=null ? r.ordering - b.ordering : null;
+    r.dSales = !r.endedAt && b && r.sales!=null && b.sales!=null ? r.sales - b.sales : null;
   });
   $('#basis').textContent = `${S.cat.name} · 마지막 수집 ${slotLab(S.index.lastMs)}`;
   $('#rangeinfo').textContent = '';

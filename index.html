@@ -825,7 +825,8 @@ function drawChart(){
         if(v0 == null) return;
         const v = ds.real ? ds.real[i] : v0;   // TOP 10 모드에선 점 위치와 별개로 실제 순위로 표시
         const st = ds.status && ds.status[i];
-        if(ds.car && ds.car[i]){ prev = v; return; }   // 마지막 값을 이어 쓴 점은 라벨 생략 (툴팁으로 확인)
+        // 마지막 값을 이어 쓴 점은 값만 회색으로 (증감 없음)
+        if(ds.car && ds.car[i]){ items.push({i, v, prev: null, pt: meta.data[i]}); prev = v; return; }
         items.push({i, v, prev: st ? null : prev, pt: meta.data[i], st});
         prev = st ? null : v;
       });

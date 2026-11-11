@@ -820,7 +820,7 @@ function drawChart(){
     const lives = new Set(); S.snaps.forEach(sn => sn.rows.forEach(r => { if(String(r.productId) === id && r.liveStartAt) lives.add(r.liveStartAt); }));
     const out = {}, endT = bs[bs.length - 1].snap.t;
     lives.forEach(ls => { const L = ymd(ls); if(!L) return;
-      const {zt, sales} = liveCalc(id, L, endT); if(zt == null) return;
+      const {zt, sales} = liveCalc(id, L, endT); if(zt == null || zt < S.inRange[0].t) return;   // 라이브 직후 수집이 조회 기간 앞이면 표시 안 함
       const i = bs.findIndex(b => b.snap.t >= zt); if(i < 0 || (!sum && !bs[i].map.get(id))) return;
       out[i] = (sum ? `${product(id).brand || ''} · ${(product(id).name || '').slice(0, 14)} ` : '') + `라이브 ${mdLab(L).replace(/<[^>]+>/g, '')} ${pad(kparts(L).h)}:${pad(new Date(L + KST).getUTCMinutes())}` + (sales != null ? ` (+${Math.round(sales / 1e6).toLocaleString('ko-KR')}백만원)` : ''); });
     return Object.keys(out).length ? out : null;

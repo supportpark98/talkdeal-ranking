@@ -822,6 +822,8 @@ function liveCalc(pid, liveMs, upTo){
     if(sn.t <= liveMs) before.push({t: sn.t, o});
     else { z = o && o.sales != null ? o : null; zt = sn.t; break; }
   }
+  // 라이브 전에 수집이 하나도 없으면(수집 시작 11/8 18시 이전 라이브 등) 첫 수집을 라이브 직후로 보지 않음
+  if(!before.length) return {zt: null, sales: null};
   let sales = null;
   if(z){
     const zs = ymd(z.dealStart);

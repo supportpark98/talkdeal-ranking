@@ -117,10 +117,16 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .hint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
 .anote:empty{display:none}
 /* 필터 컨트롤 통일: 날짜·톡딜상품 여부·카테고리·검색·빠른 기간 버튼 모두 높이 34px, 글자 14px, 같은 화살표 */
-.range select,.range .quick button,#deal,.mselbtn,#cq{height:34px;box-sizing:border-box;font-size:14px;line-height:20px;border-radius:8px}
-.range select,#deal,.mselbtn{appearance:none;-webkit-appearance:none;padding:6px 26px 6px 10px;background:var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8f98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 9px center/10px 6px}
+.range select,.range .quick button,.mselbtn,#cq{height:34px;box-sizing:border-box;font-size:14px;line-height:20px;border-radius:8px}
+.range select,.mselbtn{appearance:none;-webkit-appearance:none;padding:6px 26px 6px 10px;background:var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8f98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 9px center/10px 6px}
 .mselbtn::after{content:none}
-#deal,.mselbtn{width:180px;min-width:0;max-width:none}
+#csub .mselbtn{width:180px}
+.mselbtn{min-width:0;max-width:none}
+#dealBox .mselbtn{width:120px}
+/* 하나만 고르는 드롭다운: 고른 항목에 ✓ */
+.ssel .mselpop label{justify-content:space-between}
+.ssel .mselpop label.on{font-weight:700}
+.ssel .mselpop label.on::after{content:'✓';color:var(--text);font-size:12px}
 .range .quick button{padding:6px 12px}
 .range .grp > span[id$=Pick]{display:inline-flex;gap:4px}
 /* 모바일: 날짜는 열을 맞춘 격자, 빠른 기간은 꽉 찬 4등분, 필터 2칸은 같은 너비 */
@@ -136,11 +142,12 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
   .range .quick button{padding:6px 0;white-space:nowrap;font-size:13px}
   .searchbar{flex-direction:column;align-items:stretch;gap:8px}
   .lcol,.lrow{width:100%}
-  .lrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .lrow{display:grid;grid-template-columns:120px minmax(0,1fr);gap:8px}
   .lrow .grp{flex-direction:column;align-items:stretch;gap:4px}
   .lrow .msel{display:block}
-  #deal,.mselbtn{width:100%}
-  #deal,.mselbtn,#cq{font-size:13px}
+  .lrow .mselbtn,#csub .mselbtn{width:100%}
+  .mselbtn,#cq{font-size:13px}
+  .mselpop label{font-size:13px}
   .qwrap{width:100%;min-width:0}
   .qrow{display:grid !important;grid-template-columns:30px 1fr;gap:5px}
 }
@@ -223,7 +230,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       </div>
     </div>
     <div class="toolbar searchbar">
-      <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><select id="deal"><option value="">전체</option><option value="deal">톡딜상품만</option></select></span>
+      <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><span class="msel ssel" id="dealBox"><select id="deal" hidden><option value="">전체</option><option value="deal">톡딜상품만</option></select><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden><label data-v="">전체</label><label data-v="deal">톡딜상품만</label></div></span></span>
       <span class="grp"><span class="lbl">카테고리</span><span class="msel" id="csub"><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden></div></span></span></span></span>
       <span class="qwrap"><span class="grp qrow"><span class="lbl">검색</span><input id="cq" type="search" placeholder="스토어명, 키워드 또는 상품코드 검색"></span><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
@@ -257,7 +264,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   </section>
 
   <section class="card">
-    <h2><span class="ttl">랭킹<span class="pickbtns"><button id="pick10" class="sbtn" type="button">상위 10개 선택</button><button id="pickNone" class="sbtn" type="button">전체 선택 해제</button></span></span>
+    <h2><span class="ttl">랭킹<span class="pickbtns"><button id="pick10" class="sbtn" type="button">상위 5개 선택</button><button id="pickNone" class="sbtn" type="button">전체 선택 해제</button></span></span>
       <button id="xlsx" class="sbtn xl" type="button"><svg class="dl" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 2v8m0 0L4.5 6.5M8 10l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>엑셀 다운로드</span></button>
     </h2>
     <div class="hint" id="cmp"></div>
@@ -655,9 +662,28 @@ function buildCatMenu(cats, cnt){
     cats.map(c => `<label><input type="checkbox" data-c="${esc(c)}"${S.csub.includes(c) ? ' checked' : ''}><span class="cn" title="${esc(c)}">${esc(c)}</span><span class="cnt">${cnt[c]}</span></label>`).join('');
   box.querySelector('.mselbtn').textContent = catLabel();
 }
+// 톡딜상품 여부: 카테고리와 같은 모양의 드롭다운 (값은 숨긴 #deal select 에 두어 기존 코드가 그대로 읽음)
+function syncDeal(){
+  const box = $('#dealBox'), v = $('#deal').value;
+  box.querySelector('.mselbtn').textContent = $('#deal').selectedOptions[0].textContent;
+  box.querySelectorAll('.mselpop label').forEach(l => l.classList.toggle('on', l.dataset.v === v));
+}
+function setupDealMenu(){
+  const box = $('#dealBox'), btn = box.querySelector('.mselbtn'), pop = box.querySelector('.mselpop');
+  const open = v => { if(v) $$('.mselpop').forEach(p => { if(p !== pop) p.hidden = true; }); pop.hidden = !v; btn.setAttribute('aria-expanded', v); };
+  btn.onclick = e => { e.stopPropagation(); open(pop.hidden); };
+  document.addEventListener('click', e => { if(!box.contains(e.target)) open(false); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') open(false); });
+  pop.addEventListener('click', e => {
+    const l = e.target.closest('label'); if(!l) return;
+    open(false); if($('#deal').value === l.dataset.v) return;
+    $('#deal').value = l.dataset.v; syncDeal(); $('#deal').dispatchEvent(new Event('change'));
+  });
+  syncDeal();
+}
 function setupCatMenu(onChange){
   const box = $('#csub'), btn = box.querySelector('.mselbtn'), pop = box.querySelector('.mselpop');
-  const open = v => { pop.hidden = !v; btn.setAttribute('aria-expanded', v); };
+  const open = v => { if(v) $$('.mselpop').forEach(p => { if(p !== pop) p.hidden = true; }); pop.hidden = !v; btn.setAttribute('aria-expanded', v); };
   btn.onclick = e => { e.stopPropagation(); open(pop.hidden); };
   document.addEventListener('click', e => { if(!box.contains(e.target)) open(false); });
   document.addEventListener('keydown', e => { if(e.key === 'Escape') open(false); });
@@ -1108,13 +1134,13 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   
-  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; $('#sum').onchange = drawChart; $('#top10').onchange = drawChart; $('#liveChk').onchange = toggleLive; $('#liveOnly').onchange = () => { tiles(); drawChart(); render(); };
+  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; setupDealMenu(); $('#sum').onchange = drawChart; $('#top10').onchange = drawChart; $('#liveChk').onchange = toggleLive; $('#liveOnly').onchange = () => { tiles(); drawChart(); render(); };
   $('#xlsx').onclick = downloadXlsx;
-  // 랭킹 표 위 버튼: 지금 표에 보이는 순서대로 상위 10개 선택 / 모두 선택 해제 (검색 중이면 검색 결과 안에서)
+  // 랭킹 표 위 버튼: 지금 표에 보이는 순서대로 상위 5개 선택(기본 자동 선택과 같은 개수) / 모두 선택 해제 (검색 중이면 검색 결과 안에서)
   const setPick = ids => { if(!S.cur) return;
     if(S.filterOn){ S.fpicked = ids; S.fnone = !ids.length; } else { S.picked = ids; S.autoPick = false; }
     drawChart(); render(); };
-  $('#pick10').onclick = () => setPick(S.cur ? tableRows().slice(0, MAXPICK).map(r => String(r.productId)) : []);
+  $('#pick10').onclick = () => setPick(S.cur ? tableRows().slice(0, DEFPICK).map(r => String(r.productId)) : []);
   $('#pickNone').onclick = () => setPick([]);
   $$('#cols col').forEach(c => c.dataset.w = c.style.width);
   setupResize();
@@ -1144,7 +1170,7 @@ async function init(){
   // 기본값: 최근 1일 (어제 9시 ~ 가장 최근 수집)
   const resetRange = () => setRange(Math.max(at10(last) - DAY, first), last);
   // 초기화: 기간과 함께 톡딜상품 여부/세부 카테고리/검색어도 처음 상태로
-  $('#reset').onclick = () => { $('#deal').value = ''; $('#liveOnly').checked = false; S.csub = []; $('#cq').value = ''; resetRange(); };
+  $('#reset').onclick = () => { $('#deal').value = ''; syncDeal(); $('#liveOnly').checked = false; S.csub = []; $('#cq').value = ''; resetRange(); };
   resetRange();
 }
 init();

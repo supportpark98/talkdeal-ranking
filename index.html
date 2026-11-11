@@ -218,19 +218,19 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <table id="rank-table">
         <colgroup id="cols">
           <col data-c="rank" style="width:56px"><col data-c="chg" style="width:60px"><col data-c="name" style="width:340px">
-          <col data-c="brand" style="width:120px"><col data-c="deal" style="width:96px"><col data-c="live" style="width:104px">
+          <col data-c="brand" style="width:120px"><col data-c="deal" style="width:96px"><col data-c="dealEnd" style="width:96px"><col data-c="live" style="width:104px">
           <col data-c="sales" style="width:150px"><col data-c="ordering" style="width:130px"><col data-c="orig" style="width:100px">
           <col data-c="price" style="width:100px"><col data-c="benefit" style="width:100px"><col data-c="disc" style="width:70px">
         </colgroup>
         <thead><tr>
           <th data-k="rank" class="num">순위</th><th data-k="chg">변동</th>
           <th data-k="name">상품명</th><th data-k="brand">스토어명</th>
-          <th data-k="dealStartMs" class="num">딜 오픈일자</th><th data-k="liveMs" class="num">라이브 일자</th>
+          <th data-k="dealStartMs" class="num">딜 오픈일자</th><th data-k="dealEndMs" class="num">딜 종료일자</th><th data-k="liveMs" class="num">라이브 일자</th>
           <th data-k="sales" class="num">추정매출</th><th data-k="ordering" class="num">주문수</th>
           <th data-k="originalPrice" class="num">정상가</th><th data-k="price" class="num">톡딜가</th>
           <th data-k="maxBenefitPrice" class="num">최대혜택가</th><th data-k="discountRate" class="num">할인율</th>
         </tr></thead>
-        <tbody id="rows"><tr><td colspan="12" class="empty">불러오는 중…</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="13" class="empty">불러오는 중…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -457,7 +457,7 @@ async function update(){
 
   if(!S.inRange.length){
     $('#rangeinfo').textContent = '선택한 기간에 수집된 데이터가 없어요.';
-    $('#rows').innerHTML = '<tr><td colspan="12" class="empty">선택한 기간에 수집된 데이터가 없어요</td></tr>';
+    $('#rows').innerHTML = '<tr><td colspan="13" class="empty">선택한 기간에 수집된 데이터가 없어요</td></tr>';
     $('#tiles').innerHTML = ''; $('#cmp').textContent = ''; $('#chartNote').textContent = ''; S.cur = null; drawChart(); return;
   }
   S.cur = S.inRange[S.inRange.length-1];
@@ -466,7 +466,8 @@ async function update(){
   S.cur.rows.forEach(r => {
     const p = product(r.productId), b = baseMap.get(r.productId);
     Object.assign(r, {name:p.name, brand:p.brand, category:p.category, url:p.url, image:p.image});
-    r.dealStartMs = ymd(p.dealStart); r.dealEndMs = ymd(p.dealEnd);
+    // 오픈·종료일자는 그 수집 시점 값 (종료일이 연장되면 연장된 값)
+    r.dealStartMs = ymd(r.dealStart || p.dealStart); r.dealEndMs = ymd(r.dealEnd || p.dealEnd);
     // 딜 운영일수: 딜 시작부터 이 수집 시점까지 (시작 당일 = 1일)
     r.dealDays = r.dealStartMs && S.cur.t >= r.dealStartMs ? Math.max(1, Math.ceil((S.cur.t - r.dealStartMs) / DAY)) : null;
     r.avgOrdering = r.dealDays && r.ordering != null ? r.ordering / r.dealDays : null;
@@ -593,6 +594,7 @@ function render(){
         <div class="ptext">${r.label==='RISING_PRODUCT'?'<span class="tag rise">급상승</span>':r.label==='LIVE'?'<span class="tag live">LIVE</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a><div class="cat">${esc(r.category)}</div></div></div></td>
       <td>${esc(r.brand)}</td>
       <td class="num bold">${mdLab(r.dealStartMs)}${r.dealDays ? `<span class="delta same">행사 ${r.dealDays}일차</span>` : ''}</td>
+      <td class="num bold">${r.dealEndMs ? `${mdLab(r.dealEndMs)}<span class="delta same">${pad(kparts(r.dealEndMs).h)}:${pad(new Date(r.dealEndMs + KST).getUTCMinutes())}</span>` : '-'}</td>
       <td class="num">${r.liveMs ? `${mdLab(r.liveMs)}<span class="delta same">${pad(kparts(r.liveMs).h)}:${pad(new Date(r.liveMs + KST).getUTCMinutes())}</span>` : '-'}</td>
       <td class="num bold">${r.sales!=null ? won(r.sales)+'원' : '-'}${deltaHTML(r.dSales, won)}${r.avgSales!=null ? `<span class="delta same">(일평균 ${won(r.avgSales)}원)</span>` : ''}</td>
       <td class="num bold">${fmt(r.ordering)}${deltaHTML(r.dOrdering, fmt)}${r.avgOrdering!=null ? `<span class="delta same">(일평균 ${fmt(r.avgOrdering)})</span>` : ''}</td>
@@ -600,7 +602,7 @@ function render(){
       <td class="num">${fmt(r.price)}원</td>
       <td class="num benefit">${r.maxBenefitPrice ? fmt(r.maxBenefitPrice)+'원' : '-'}</td>
       <td class="num disc">${r.discountRate ? Math.round(r.discountRate)+'%' : '-'}</td>
-    </tr>`).join('') : `<tr><td colspan="12" class="empty">${'조건에 맞는 상품이 없어요'}</td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="13" class="empty">${'조건에 맞는 상품이 없어요'}</td></tr>`;
   $$('#rows tr[data-id]').forEach(tr => tr.onclick = e => {
     if(e.target.closest('a')) return;
     const id = tr.dataset.id;
@@ -840,10 +842,10 @@ async function downloadXlsx(){
   const btn = $('#xlsx'); btn.disabled = true; btn.textContent = '만드는 중…';
   try{
     if(typeof XLSX === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
-    const dt = ms => { if(ms==null) return null; const p = kparts(ms); return `${p.y}-${pad(p.m)}-${pad(p.d)} ${pad(p.h)}:00`; };
+    const dt = ms => { if(ms==null) return null; const p = kparts(ms); return `${p.y}-${pad(p.m)}-${pad(p.d)} ${pad(p.h)}:${pad(new Date(ms + KST).getUTCMinutes())}`; };
     const chgText = r => !S.base ? '' : r.chg===999 ? 'NEW' : r.chg;
     const sheet1 = tableRows().map(r => ({'순위':r.rank, '변동':chgText(r), '상품명':r.name, '스토어명':r.brand, '카테고리':r.category,
-      '딜 오픈일자':dt(r.dealStartMs), '딜 운영일수':r.dealDays, '딜 종료':dt(r.dealEndMs), '라이브 일자':dt(r.liveMs),
+      '딜 오픈일자':dt(r.dealStartMs), '딜 운영일수':r.dealDays, '딜 종료일자':dt(r.dealEndMs), '라이브 일자':dt(r.liveMs),
       '추정매출':r.sales, '추정매출 증감':r.dSales, '일평균 추정매출':r.avgSales!=null?Math.round(r.avgSales):null,
       '주문수':r.ordering, '주문수 증감':r.dOrdering, '일평균 주문':r.avgOrdering!=null?Math.round(r.avgOrdering):null,
       '정상가':r.originalPrice, '톡딜가':r.price, '최대혜택가':r.maxBenefitPrice, '할인율(%)':r.discountRate,
@@ -870,7 +872,7 @@ async function init(){
     S.index = await getJSON('data/index.json');
     if(!S.index.categories || !S.index.categories.length) throw new Error('empty');
   }catch(e){
-    $('#rows').innerHTML = '<tr><td colspan="12" class="empty">아직 수집된 데이터가 없어요. 첫 수집 후에 표시됩니다.</td></tr>';
+    $('#rows').innerHTML = '<tr><td colspan="13" class="empty">아직 수집된 데이터가 없어요. 첫 수집 후에 표시됩니다.</td></tr>';
     $('#basis').textContent = '데이터 없음'; return;
   }
   S.index.firstMs = Date.parse(S.index.first); S.index.lastMs = Date.parse(S.index.last);

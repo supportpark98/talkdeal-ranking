@@ -855,7 +855,9 @@ function drawChart(){
         const data = bs.map((_, i) => { let sum = 0, any = false; ss.forEach(x => { if(x.vals[i] != null){ sum += x.vals[i]; any = true; } }); return any ? sum : null; });
         // 라이브 표시: 묶인 상품들의 라이브 반영 시점을 모아서 (한 칸에 여러 상품이면 툴팁에 모두)
         const live = {}; ms.forEach(id => { const m = liveMarks(id, true); if(m) Object.entries(m).forEach(([k, t]) => (live[k] = live[k] || []).push(t)); });
-        return {data, carN, live: Object.keys(live).length ? live : null}; };
+        // 묶인 상품이 모두 마지막 값을 이어 쓰는 시점(살아 있는 딜이 하나도 없음)은 합계 선도 회색 점선 + 빈 점
+        const car = bs.map((_, i) => { const has = ss.filter(x => x.vals[i] != null); return has.length > 0 && has.every(x => x.car[i]); });
+        return {data, carN, car: car.some(Boolean) ? car : null, live: Object.keys(live).length ? live : null}; };
       datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ...sumOf(ms)}; })
         : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, ...sumOf(match)}];
     } else {

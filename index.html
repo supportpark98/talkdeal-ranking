@@ -227,7 +227,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
         <thead><tr>
           <th data-k="rank" class="num">순위</th><th data-k="chg">변동</th>
           <th data-k="name">상품명</th><th data-k="brand">스토어명</th>
-          <th data-k="dealStartMs" class="num">딜 오픈일자</th><th data-k="dealEndMs" class="num">딜 종료일자</th><th data-k="liveMs" class="num">라이브 일자</th>
+          <th data-k="dealStartMs" class="num">딜 오픈일자</th><th data-k="dealEndMs" class="num">딜 종료일자</th><th data-k="liveMs" class="num">라이브</th>
           <th data-k="sales" class="num">추정매출</th><th data-k="ordering" class="num">주문수</th>
           <th data-k="originalPrice" class="num">정상가</th><th data-k="price" class="num">톡딜가</th>
           <th data-k="maxBenefitPrice" class="num">최대혜택가</th><th data-k="discountRate" class="num">할인율</th>
@@ -637,7 +637,7 @@ function render(){
       <td>${esc(r.brand)}</td>
       <td class="num bold">${r.dealStartMs ? `${mdLab(r.dealStartMs)}<span class="delta same">${pad(kparts(r.dealStartMs).h)}:${pad(new Date(r.dealStartMs + KST).getUTCMinutes())}</span>` : '-'}</td>
       <td class="num bold">${r.dealEndMs ? `${mdLab(r.dealEndMs)}<span class="delta same">${pad(kparts(r.dealEndMs).h)}:${pad(new Date(r.dealEndMs + KST).getUTCMinutes())}</span>` : '-'}</td>
-      <td class="num">${r.liveMs ? `${mdLab(r.liveMs)}<span class="delta same">${pad(kparts(r.liveMs).h)}:${pad(new Date(r.liveMs + KST).getUTCMinutes())}</span>${r.liveSales != null ? `<span class="delta same">(추정매출 +${won(r.liveSales)}원)</span>` : ''}` : '-'}</td>
+      <td class="num">${r.liveMs ? `${mdLab(r.liveMs)}<span class="delta same">${pad(kparts(r.liveMs).h)}:${pad(new Date(r.liveMs + KST).getUTCMinutes())}</span>${r.liveSales != null ? `<span class="delta same">(+${(r.liveSales/1e6).toLocaleString('ko-KR',{minimumFractionDigits:1,maximumFractionDigits:1})}백만원)</span>` : ''}` : '-'}</td>
       <td class="num bold">${r.sales!=null ? won(r.sales)+'원' : '-'}${deltaHTML(r.dSales, won)}${r.avgSales!=null ? `<span class="delta same">(일평균 ${won(r.avgSales)}원)</span>` : ''}</td>
       <td class="num bold">${fmt(r.ordering)}${deltaHTML(r.dOrdering, fmt)}${r.avgOrdering!=null ? `<span class="delta same">(일평균 ${fmt(r.avgOrdering)})</span>` : ''}</td>
       <td class="num strike">${r.originalPrice && r.originalPrice !== r.price ? fmt(r.originalPrice)+'원' : '-'}</td>

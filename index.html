@@ -857,7 +857,7 @@ function toggleLiveOnly(){
       ds.forEach(d => d._fa = from + (to - from) * e); c.draw(); if(k < 1) S.loRaf = requestAnimationFrame(step); else ds.forEach(d => { if(to === 1) d._fa = null; }); };
     S.loRaf = requestAnimationFrame(step); };
   if(on){
-    S.loSave = (S.shown || []).slice(); S.keepPick = S.loSave.filter(id => !dead(id));
+    S.loSum = !perLine(S.chart); S.loSave = !S.loSum || S.ssManual ? (S.shown || []).slice() : null; if(S.loSave) S.keepPick = S.loSave.filter(id => !dead(id));
     $$('#rows tr[data-id]').forEach(tr => { if(dead(tr.dataset.id)) tr.classList.add('lofade'); });
     const c = S.chart;
     if(perLine(c)){ const idx = deadIdx(c);
@@ -869,7 +869,8 @@ function toggleLiveOnly(){
     const cur = (S.shown || []).slice();
     // 원래 순서대로 되돌려서 색도 처음과 같게 (켜 둔 동안 새로 고른 상품은 뒤에)
     const base = (S.loSave || []).filter(id => dead(id) || cur.includes(id));
-    S.keepPick = [...base, ...cur.filter(id => !base.includes(id))].slice(0, MAXPICK); S.loSave = null;
+    // 스토어 합쳐보기에서 직접 고른 상태였으면 그 선택 그대로 되돌림
+    if(S.loSave) S.keepPick = S.loSum ? S.loSave : [...base, ...cur.filter(id => !base.includes(id))].slice(0, MAXPICK); S.loSave = null;   // 합쳐보기 중이면 선택은 그대로
     colors(); if(base.length) S.keepColors = null;
     S.noAnim = true; tiles(); drawChart(); render();
     $$('#rows tr[data-id]').forEach(tr => { if(dead(tr.dataset.id)) tr.classList.add('loin'); });
@@ -940,7 +941,7 @@ function drawChart(){
   const fkey = ts.join(',') + '|' + csub + '|' + $('#deal').value + '|' + liveOnly; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; S.fnone = false; }
   if(S.keepPick){ if(q){ S.fpicked = S.keepPick; S.fnone = false; } else if(S.keepPick.length) S.picked = S.keepPick; S.keepPick = null; }
   // 스토어별 합쳐보기: 조건에 맞는 상품을 스토어마다 합계 선 하나로 (검색 없이도 가능, 합계 상위 5개 스토어)
-  const storeSum = $('#ssum').checked && metric !== 'rank';
+  const storeSum = $('#ssum').checked && metric !== 'rank'; S.ssManual = false;
   const sumMode = !storeSum && $('#sum').checked && !!q;
   $('#sum').disabled = !q;
   // 순위 모드에서는 'TOP 10만 표시'(기본 켜짐), 추정매출/주문수 모드에서는 '검색어별로 합쳐 보기'
@@ -1011,13 +1012,20 @@ function drawChart(){
         return {data, carN, car: car.some(Boolean) ? car : null, brk: brk.some(Boolean) ? brk : null, restart: brk.some(Boolean),
           live: Object.keys(live).length ? live : null}; };
       if(storeSum){
-        const by = new Map(); match.forEach(id => { const b = product(id).brand || '-'; if(!by.has(b)) by.set(b, []); by.get(b).push(id); });
+        // 표에서 직접 고른 상품이 있으면 그 상품들만 스토어별로, 아니면(자동 선택) 합계 상위 5개 스토어
+        const mine = q ? S.fpicked : S.picked;
+        const manual = q ? (S.fpicked.length > 0 || S.fnone) : !S.autoPick; S.ssManual = manual;   // '전체 선택 해제'면 빈 차트
+        const src = manual ? mine.filter(id => S.matchIds.has(id) || !q) : match;
+        const by = new Map(); src.forEach(id => { const b = product(id).brand || '-'; if(!by.has(b)) by.set(b, []); by.get(b).push(id); });
         const lastOf = d => { for(let i = d.data.length - 1; i >= 0; i--) if(d.data[i] != null) return d.data[i]; return -1; };
-        datasets = [...by].map(([b, ms]) => ({label:`${b} 합계 (${ms.length}개 상품)`, ...sumOf(ms)}))
-          .filter(d => lastOf(d) >= 0).sort((a, b) => lastOf(b) - lastOf(a)).slice(0, DEFPICK);   // 합계 상위 5개 스토어   // 값이 없는(일반 상품만 있는) 스토어는 뺌
+        datasets = [...by].map(([b, ms]) => ({label:`${b} 합계 (${ms.length}개 상품)`, ids: ms, ...sumOf(ms)}))
+          .filter(d => lastOf(d) >= 0)   // 값이 없는(일반 상품만 있는) 스토어는 뺌
+          .sort((a, b) => lastOf(b) - lastOf(a)).slice(0, manual ? MAXPICK : DEFPICK);
       } else
-      datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ...sumOf(ms)}; })
-        : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, ...sumOf(match)}];
+      datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ids: ms, ...sumOf(ms)}; })
+        : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, ids: match, ...sumOf(match)}];
+      // 합계에 들어간 상품은 랭킹 표에 노란색으로
+      ids = [...new Set(datasets.flatMap(d => d.ids))];
     } else {
       // 표에서 고른 상품 중 조건에 맞는 것이 있으면 그것만, 없으면 종료 시점 순위 상위 5개
       // TOP 10만 표시면 기간 중 10위 안에 든 적 있는 상품 중에서 고른다 (안 그러면 고른 5개 중 일부가 그래프에서 빠집)
@@ -1232,7 +1240,7 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   
-  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); setupCatMenu(() => { drawChart(); tiles(); render(); }, 'ssub'); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; setupDealMenu(); $('#sum').onchange = () => { if($('#sum').checked) $('#ssum').checked = false; drawChart(); }; $('#ssum').onchange = () => { if($('#ssum').checked) $('#sum').checked = false; drawChart(); }; $('#top10').onchange = drawChart; $('#liveChk').onchange = toggleLive; $('#liveOnly').onchange = toggleLiveOnly;
+  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); setupCatMenu(() => { drawChart(); tiles(); render(); }, 'ssub'); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; setupDealMenu(); $('#sum').onchange = () => { if($('#sum').checked) $('#ssum').checked = false; drawChart(); render(); }; $('#ssum').onchange = () => { if($('#ssum').checked) $('#sum').checked = false; drawChart(); render(); }; $('#top10').onchange = drawChart; $('#liveChk').onchange = toggleLive; $('#liveOnly').onchange = toggleLiveOnly;
   $('#xlsx').onclick = downloadXlsx;
   // 랭킹 표 위 버튼: 지금 표에 보이는 순서대로 상위 5개 선택(기본 자동 선택과 같은 개수) / 모두 선택 해제 (검색 중이면 검색 결과 안에서)
   const setPick = ids => { if(!S.cur) return;

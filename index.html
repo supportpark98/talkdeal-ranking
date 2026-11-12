@@ -313,11 +313,13 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   <span id="since"></span><br>
   추정매출 = 수집할 때마다 늘어난 주문수 × 그때의 톡딜가를 더한 값 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로, 옵션별 가격 차이는 반영되지 않은 추정치)<br>
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
-  딜 종료 = 조회 기간 중 진행됐지만 종료 시점에는 끝난 딜. 딜 정보·추정매출·주문수·가격은 그 딜의 마지막 수집값<br>
+  종료 = 조회 기간 중 진행됐지만 종료 시점에는 끝난 딜. 딜 정보·추정매출·주문수·가격은 그 딜의 마지막 수집값<br>
   순위권 밖 = 조회 기간 중 순위에 있었지만 종료 시점에는 100위 밖으로 밀린 딜. 딜 정보·추정매출·주문수·가격은 순위권 안에 있던 마지막 수집값<br>
   라이브 추정매출 = 라이브 직전 수집과 직후 수집 사이에 늘어난 추정매출 (그 구간의 다른 판매도 포함된 대략적인 값). 딜 오픈 후 라이브 전 수집에서 순위에 잡힌 적이 없으면 직후 수집 값 전체<br>
   집계 오류 보정 = 카카오 집계 오류로 일부 상품이 빠진 수집분은, 빠진 상품의 주문수·누적 판매량·순위를 앞뒤 정상 수집값 사이에서 수집 시각 비율로 채운 값 (같은 딜이 앞뒤 수집에 모두 있을 때만, 다음 정상 수집 때 자동 보정)<br>
-  추이의 회색 점선 = 딜이 끝났거나 100위권 밖으로 빠져 값이 없는 시점. 추정매출·주문수의 마지막 값을 이어서 표시하고 합계에도 포함<br>
+  추이의 회색 점선 = 딜이 끝났거나 100위권 밖으로 빠져 값이 없는 시점. 추정매출·주문수의 마지막 값을 이어서 표시하고 합계에도 포함. 조회 기간 시작 전에 끝난 딜은 제외<br>
+  추이의 ◎ = 라이브 반영 시점 (라이브 직후 첫 수집). 점을 누르면 라이브 시각과 라이브 추정매출이 보입니다<br>
+  합쳐보기 합계 = 묶인 딜이 모두 끝난 뒤 새 딜이 열리면, 이전 딜 합계를 빼고 새 딜 값부터 다시 셉니다<br>
   일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.
 </footer>
 <button id="toTop" type="button" aria-label="맨 위로" title="맨 위로">↑</button>
@@ -883,12 +885,10 @@ function toggleLive(){
   const ch = S.chart, on = $('#liveChk').checked;
   if(!ch){ drawChart(); return; }
   const ds = ch.data.datasets, any = ds.some(d => d._live);
-  const NOTE = '*◎ 표시는 라이브 반영 시점입니다. (점을 누르면 라이브 시각과 추정매출이 보입니다)';
   const apply = v => ds.forEach(d => { d.live = v ? d._live : null;
     d.pointRadius = d.live ? d.data.map((_, k) => d.live[k] ? 4.5 : 3) : 3; });
   cancelAnimationFrame(S.liveRaf);
-  if(on){ apply(true); $('#liveNote').textContent = any ? NOTE : ''; }
-  else $('#liveNote').textContent = '';
+  if(on) apply(true);
   if(!any){ apply(on); ch.update('none'); return; }
   const from = on ? 0 : 1, to = on ? 1 : 0, t0 = performance.now(), D = 350;
   S.liveA = from; ch.update('none');
@@ -1056,8 +1056,7 @@ function drawChart(){
   datasets.forEach(d => { d._live = d.live || null; if(!$('#liveChk').checked) d.live = null; });
   S.liveA = 1;
   const hasOut = datasets.some(d => d.status && d.status.some(Boolean));
-  $('#liveNote').textContent = [datasets.some(d => d.live) ? '*◎ 표시는 라이브 반영 시점입니다. (점을 누르면 라이브 시각과 추정매출이 보입니다)' : '',
-    datasets.some(d => d.restart) ? '*합계는 묶인 딜이 모두 끝난 뒤 새 딜이 열리면, 새 딜 값부터 다시 셉니다.' : ''].filter(Boolean).join('\n');
+  $('#liveNote').textContent = '';   // 라이브 ◎·합계 재시작 설명은 푸터로
   const dark = matchMedia('(prefers-color-scheme: dark)').matches, grid = dark ? '#2c3036' : '#eceef1', tick = dark ? '#9aa0a6' : '#6b7280';
   const cardC = getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff';
   const kc = S.keepColors; S.keepColors = null; const noAnim = S.noAnim; S.noAnim = false;   // 진행 중인 딜만 보기 토글 직후: 남는 선은 원래 색 그대로

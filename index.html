@@ -764,7 +764,7 @@ function render(){
     if(S.filterOn){ if(!S.fpicked.length) S.fpicked = (S.shown || []).slice(); L = S.fpicked; S.fnone = false; }
     else { if(S.autoPick && sumOn) { S.picked = (S.shown || []).slice(); L = S.picked; } S.autoPick = false; }
     const i = L.indexOf(id);
-    if(i>=0) L.splice(i,1); else { if(!sumOn && L.length>=MAXPICK){ toast(`최대 ${MAXPICK}개까지만 선택할 수 있어요`); return; } L.push(id); }
+    if(i>=0){ L.splice(i,1); if(S.filterOn && !L.length) S.fnone = true; } else { if(!sumOn && L.length>=MAXPICK){ toast(`최대 ${MAXPICK}개까지만 선택할 수 있어요`); return; } L.push(id); }
     drawChart(); render();   // 추이가 표시 상품(S.shown)을 먼저 바꾼 뒤 표에 노란 표시 (순서가 반대면 한 박자 늦게 반영됨)
   });
 }
@@ -1024,9 +1024,11 @@ function drawChart(){
         datasets = [...by].map(([b, ms]) => ({label:`${b} 합계 (${ms.length}개 상품)`, ids: ms, ...sumOf(ms)}))
           .filter(d => lastOf(d) >= 0)   // 값이 없는(일반 상품만 있는) 스토어는 뺌
           .sort((a, b) => lastOf(b) - lastOf(a)).slice(0, manual ? MAXPICK : DEFPICK);
-      } else
-      datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ids: ms, ...sumOf(ms)}; })
-        : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, ids: match, ...sumOf(match)}];
+      } else {
+      // 검색어별 합쳐보기도 표에서 직접 고른(노란) 상품이 있으면 그 상품들만 더함
+      const base = (S.fpicked.length > 0 || S.fnone) ? S.fpicked.filter(id => S.matchIds.has(id)) : match;
+      datasets = ts.length ? ts.map(t => { const ms = base.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ids: ms, ...sumOf(ms)}; })
+        : [{label:`${csub || '톡딜상품'} 합계 (${base.length}개 상품)`, ids: base, ...sumOf(base)}]; }
       // 합계에 들어간 상품은 랭킹 표에 노란색으로
       ids = [...new Set(datasets.flatMap(d => d.ids))];
     } else {

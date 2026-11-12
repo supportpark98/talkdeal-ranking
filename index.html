@@ -846,6 +846,8 @@ function liveCalc(pid, liveMs, upTo){
 }
 // 라이브 표시 켜기/끄기: 차트는 그대로 두고 링만 페이드로 나타나거나 사라지게 (약 0.35초)
 // 진행 중인 딜만 보기: 표와 추이는 그대로 두고 끝난 딜 줄·선만 서서히 사라지게 (끄면 다시 서서히 나타남)
+// 합쳐보기를 켜는 순간엔 이전 선택(전체 해제 포함)을 버리고 현재 조건 기준 자동 선택(TOP5 스토어 / 검색 결과 전체)으로 시작
+function sumReset(){ S.fpicked = []; S.fnone = false; S.autoPick = true; S.picked = tableRows().slice(0, DEFPICK).map(r => String(r.productId)); }
 function toggleLiveOnly(){
   // 차트를 새로 그리지 않고, 끝난 딜 선을 숨기는 전환 하나로: 선이 흐려지는 동안 축 범위·남은 선 위치도 함께 부드럽게 바뀜
   const on = $('#liveOnly').checked, D = 500, dead = id => !S.liveIds.has(String(id));
@@ -1245,7 +1247,7 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   
-  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); setupCatMenu(() => { drawChart(); tiles(); render(); }, 'ssub'); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; setupDealMenu(); $('#sum').onchange = () => { if($('#sum').checked) $('#ssum').checked = false; drawChart(); render(); }; $('#ssum').onchange = () => { if($('#ssum').checked) $('#sum').checked = false; drawChart(); render(); }; $('#top10').onchange = drawChart; $('#liveChk').onchange = toggleLive; $('#liveOnly').onchange = toggleLiveOnly;
+  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); setupCatMenu(() => { drawChart(); tiles(); render(); }, 'ssub'); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; setupDealMenu(); $('#sum').onchange = () => { if($('#sum').checked){ $('#ssum').checked = false; sumReset(); } drawChart(); render(); }; $('#ssum').onchange = () => { if($('#ssum').checked){ $('#sum').checked = false; sumReset(); } drawChart(); render(); }; $('#top10').onchange = drawChart; $('#liveChk').onchange = toggleLive; $('#liveOnly').onchange = toggleLiveOnly;
   $('#xlsx').onclick = downloadXlsx;
   // 랭킹 표 위 버튼: 지금 표에 보이는 순서대로 상위 5개 선택(기본 자동 선택과 같은 개수) / 모두 선택 해제 (검색 중이면 검색 결과 안에서)
   const setPick = ids => { if(!S.cur) return;

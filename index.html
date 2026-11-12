@@ -272,7 +272,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     <div class="toolbar chartbar">
       <div class="hint" id="chartHint"></div>
       <label class="chk" id="top10Wrap"><input type="checkbox" id="top10"> 10위까지만 표시</label>
-      <label class="chk" id="ssumWrap"><input type="checkbox" id="ssum"> 스토어별 합쳐보기</label>
+      <label class="chk" id="ssumWrap"><input type="checkbox" id="ssum"> TOP 5 스토어 합쳐보기</label>
       <label class="chk" id="sumWrap"><input type="checkbox" id="sum"> 검색어별 합쳐보기</label>
       <label class="chk" id="liveOnlyWrap"><input type="checkbox" id="liveOnly"> 종료 딜 제외</label>
       <label class="chk" id="liveWrap"><input type="checkbox" id="liveChk" checked> 라이브 표시</label>
@@ -939,7 +939,7 @@ function drawChart(){
   // 검색 조건이 바뀌면 조건 안에서 고른 상품은 초기화
   const fkey = ts.join(',') + '|' + csub + '|' + $('#deal').value + '|' + liveOnly; if(S.fkey !== fkey){ S.fkey = fkey; S.fpicked = []; S.fnone = false; }
   if(S.keepPick){ if(q){ S.fpicked = S.keepPick; S.fnone = false; } else if(S.keepPick.length) S.picked = S.keepPick; S.keepPick = null; }
-  // 스토어별 합쳐보기: 조건에 맞는 상품을 스토어마다 합계 선 하나로 (검색 없이도 가능, 합계 상위 10개 스토어)
+  // 스토어별 합쳐보기: 조건에 맞는 상품을 스토어마다 합계 선 하나로 (검색 없이도 가능, 합계 상위 5개 스토어)
   const storeSum = $('#ssum').checked && metric !== 'rank';
   const sumMode = !storeSum && $('#sum').checked && !!q;
   $('#sum').disabled = !q;
@@ -1014,7 +1014,7 @@ function drawChart(){
         const by = new Map(); match.forEach(id => { const b = product(id).brand || '-'; if(!by.has(b)) by.set(b, []); by.get(b).push(id); });
         const lastOf = d => { for(let i = d.data.length - 1; i >= 0; i--) if(d.data[i] != null) return d.data[i]; return -1; };
         datasets = [...by].map(([b, ms]) => ({label:`${b} 합계 (${ms.length}개 상품)`, ...sumOf(ms)}))
-          .filter(d => lastOf(d) >= 0).sort((a, b) => lastOf(b) - lastOf(a)).slice(0, MAXPICK);   // 값이 없는(일반 상품만 있는) 스토어는 뺌
+          .filter(d => lastOf(d) >= 0).sort((a, b) => lastOf(b) - lastOf(a)).slice(0, DEFPICK);   // 합계 상위 5개 스토어   // 값이 없는(일반 상품만 있는) 스토어는 뺌
       } else
       datasets = ts.length ? ts.map(t => { const ms = match.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ...sumOf(ms)}; })
         : [{label:`${csub || '톡딜상품'} 합계 (${match.length}개 상품)`, ...sumOf(match)}];

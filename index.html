@@ -759,9 +759,12 @@ function render(){
     if(e.target.closest('a')) return;
     const id = tr.dataset.id;
     let L = S.picked;
-    if(S.filterOn){ if(!S.fpicked.length) S.fpicked = (S.shown || []).slice(); L = S.fpicked; S.fnone = false; } else S.autoPick = false;
+    // 합쳐보기 중이면 지금 노랗게 표시된(합계에 들어간) 상품에서 출발해 넣고 뺀다
+    const sumOn = S.chart && S.chart.data.datasets.some(d => !d.pid);
+    if(S.filterOn){ if(!S.fpicked.length) S.fpicked = (S.shown || []).slice(); L = S.fpicked; S.fnone = false; }
+    else { if(S.autoPick && sumOn) { S.picked = (S.shown || []).slice(); L = S.picked; } S.autoPick = false; }
     const i = L.indexOf(id);
-    if(i>=0) L.splice(i,1); else { if(L.length>=MAXPICK){ toast(`최대 ${MAXPICK}개까지만 선택할 수 있어요`); return; } L.push(id); }
+    if(i>=0) L.splice(i,1); else { if(!sumOn && L.length>=MAXPICK){ toast(`최대 ${MAXPICK}개까지만 선택할 수 있어요`); return; } L.push(id); }
     drawChart(); render();   // 추이가 표시 상품(S.shown)을 먼저 바꾼 뒤 표에 노란 표시 (순서가 반대면 한 박자 늦게 반영됨)
   });
 }

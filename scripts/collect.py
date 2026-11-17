@@ -48,7 +48,11 @@ CATEGORIES = [
      # 다른 카테고리 코드가 단수형(SPORT 등)이라 단수형·가전 계열을 더 시도한다
      "candidates": ["ELECTRONIC", "DIGITAL_ELECTRONIC", "HOME_APPLIANCE", "DIGITAL_HOME_APPLIANCE", "APPLIANCES",
                     "DIGITAL_APPLIANCES", "ELECTRONIC_DIGITAL", "DIGITAL_DEVICE", "IT", "COMPUTER",
-                    "DIGITAL", "DIGITAL_APPLIANCE", "ELECTRONICS", "APPLIANCE", "DIGITAL_ELECTRONICS"]},
+                    "DIGITAL", "DIGITAL_APPLIANCE", "ELECTRONICS", "APPLIANCE", "DIGITAL_ELECTRONICS"],
+     # 세부 카테고리 이름에 이 단어가 든 상품이 3개 이상이어야 디지털/가전 랭킹으로 인정 (엉뚱한 카테고리 코드를 거름)
+     "keywords": ["가전", "디지털", "노트북", "이어폰", "헤드폰", "청소기", "모니터", "휴대폰", "스마트폰", "케이블", "충전",
+                  "TV", "냉장고", "세탁기", "카메라", "스피커", "마우스", "키보드", "태블릿", "밥솥", "가습기", "제습기",
+                  "드라이기", "선풍기", "히터", "온풍기", "전기", "에어프라이어", "커피머신", "PC", "배터리", "워치"]},
     {"key": "INTERIOR", "name": "인테리어", "groupId": "4", "extra": True,
      "candidates": ["INTERIOR", "FURNITURE", "HOME_INTERIOR", "FURNITURE_INTERIOR"]},
 ]
@@ -362,31 +366,94 @@ RETRY_MIN = (5, 10, 15)
 CODES_FILE = "category_codes.json"   # data/category_codes.json = {카테고리 key: 확인된 categoryType}
 
 
+RANK_PAGE = "https://store.kakao.com/home/best?tab=contProduct&groupId={gid}&period=DAILY"
+
+
+def page_codes(gid):
+    """후보가 다 틀렸을 때: 톡딜 랭킹 페이지와 그 자바스크립트에서 카테고리 코드처럼 생긴 영문 대문자 값을 모은다.
+    이미 아는 코드(BEAUTY, SPORT 등) 근처에 나오는 값을 앞에 둔다."""
+    import re
+    known = ("BEAUTY", "CHILD", "LIFE", "FASHION", "FOOD", "SPORT", "INTERIOR")
+
+    def get(url):
+        req = urllib.request.Request(url, headers={**HEADERS, "Accept": "*/*"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.read().decode("utf-8", "replace")
+
+    html = get(RANK_PAGE.format(gid=gid))
+    texts = [html]
+    for src in re.findall(r'<script[^>]+src="([^"]+)"', html)[:40]:
+        url = src if src.startswith("http") else "https://store.kakao.com" + (src if src.startswith("/") else "/" + src)
+        try:
+            texts.append(get(url))
+        except Exception:  # noqa: BLE001
+            pass
+    near, other = [], []
+    for t in texts:
+        for m in re.finditer(r'["\']([A-Z][A-Z0-9_]{1,29})["\']', t):
+            code = m.group(1)
+            window = t[max(0, m.start() - 300):m.end() + 300]
+            (near if sum(k in window for k in known) >= 2 else other).append(code)
+    seen, out = set(known), []
+    for code in near + other:
+        if code not in seen:
+            seen.add(code)
+            out.append(code)
+    return out
+
+
 def resolve_code(out, c, ref_ids):
     """추가 카테고리의 카카오 categoryType 값을 찾는다. 저장된 값이 있으면 그대로 쓴다.
     없으면 candidates를 차례로 1번씩만 시도해서, 상품이 오고 그 목록이 다른 카테고리(전체 등)와 똑같지 않은 첫 값을 고른다.
-    (모르는 값이면 카카오가 오류를 주거나 전체 랭킹을 그대로 돌려줄 수 있어서 둘 다 거른다)"""
+    (모르는 값이면 카카오가 오류를 주거나 전체 랭킹을 그대로 돌려줄 수 있어서 둘 다 거른다)
+    후보가 모두 틀리면 랭킹 페이지의 자바스크립트에서 코드처럼 생긴 값을 모아 이어서 시도한다.
+    keywords가 있으면 세부 카테고리 이름에 그 단어가 든 상품이 3개 이상일 때만 인정한다."""
     if "candidates" not in c:
         return c["key"]
     path = os.path.join(out, CODES_FILE)
     codes = read_json(path, {})
     if codes.get(c["key"]):
         return codes[c["key"]]
-    for code in c["candidates"] + [c["groupId"]]:
+    used = {x["key"] for x in CATEGORIES if "candidates" not in x} | set(codes.values())
+    tried = set()
+
+    def attempt(code):
+        if code in tried or code in used:
+            return False
+        tried.add(code)
         try:
             d = fetch(code, 20, retries=1)
         except Exception:  # noqa: BLE001
-            continue
-        ids = tuple(p.get("productId") for p in d.get("products", []))
+            return False
+        ps = d.get("products", [])
+        ids = tuple(p.get("productId") for p in ps)
         if not ids or ids in ref_ids:
             print(f"{c['name']}: categoryType={code} 은 상품이 없거나 다른 카테고리와 같아서 제외")
-            continue
-        names = sorted({p.get("categoryName") for p in d.get("products", []) if p.get("categoryName")})
+            return False
+        names = sorted({p.get("categoryName") for p in ps if p.get("categoryName")})
+        if c.get("keywords"):
+            hit = sum(1 for p in ps if any(k in (p.get("categoryName") or "") for k in c["keywords"]))
+            if hit < 3:
+                print(f"{c['name']}: categoryType={code} 은 {c['name']} 상품이 아니라서 제외 (예: {', '.join(names[:6])})")
+                return False
         print(f"{c['name']}: categoryType={code} 확인 (세부 카테고리 예: {', '.join(names[:8])})")
         codes[c["key"]] = code
         write_json(path, codes)
-        return code
-    raise RuntimeError(f"categoryType 값을 찾지 못함 (시도: {', '.join(c['candidates'])})")
+        return True
+
+    for code in c["candidates"] + [c["groupId"]]:
+        if attempt(code):
+            return code
+    try:
+        extra = page_codes(c["groupId"])
+    except Exception as e:  # noqa: BLE001
+        extra = []
+        print(f"::warning::{c['name']}: 랭킹 페이지에서 코드 후보를 못 가져옴: {e}")
+    print(f"{c['name']}: 후보가 모두 틀려서 랭킹 페이지에서 찾은 값 {len(extra)}개를 시도 (앞쪽: {', '.join(extra[:15])})")
+    for code in extra[:80]:
+        if attempt(code):
+            return code
+    raise RuntimeError(f"categoryType 값을 찾지 못함 (후보 {len(c['candidates'])}개 + 페이지에서 찾은 값 {min(len(extra), 80)}개 시도)")
 
 
 def fetch_all(targets, size, out="data"):

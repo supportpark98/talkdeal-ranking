@@ -35,15 +35,16 @@ CATEGORIES = [
     {"key": "LIFE", "name": "생활", "groupId": "9"},
     {"key": "BEAUTY", "name": "뷰티", "groupId": "2"},
     # 추가 카테고리 (대시보드에서는 '카테고리 더보기' 패널에 표시). extra=True
+    # code: 확인된 카카오 categoryType 값 (고정). code가 없을 때만 candidates로 찾는다
     # key는 저장 폴더 이름. 카카오 API의 categoryType 값은 아직 확인 전이라 candidates를 차례로 시도해서
     # 실제 그 카테고리 상품이 오는 값을 찾으면 data/category_codes.json에 저장해 두고 다음부터 그 값만 쓴다.
-    {"key": "FASHION", "name": "패션", "groupId": "10", "extra": True,
+    {"key": "FASHION", "name": "패션", "groupId": "10", "extra": True, "code": "FASHION",
      "candidates": ["FASHION", "FASHION_CLOTHES", "CLOTHES", "FASHION_GOODS"]},
-    {"key": "FOOD", "name": "식품", "groupId": "3", "extra": True,
+    {"key": "FOOD", "name": "식품", "groupId": "3", "extra": True, "code": "FOOD",
      "candidates": ["FOOD", "FRESH_FOOD", "FOODS"]},
-    {"key": "SPORTS", "name": "스포츠/레저", "groupId": "8", "extra": True,
+    {"key": "SPORTS", "name": "스포츠/레저", "groupId": "8", "extra": True, "code": "SPORT",
      "candidates": ["SPORTS", "SPORTS_LEISURE", "LEISURE", "SPORT"]},
-    {"key": "DIGITAL", "name": "디지털/가전", "groupId": "5", "extra": True,
+    {"key": "DIGITAL", "name": "디지털/가전", "groupId": "5", "extra": True, "code": "ELECTRONIC",
      # 1차 후보(DIGITAL, DIGITAL_APPLIANCE, ELECTRONICS, APPLIANCE, DIGITAL_ELECTRONICS)는 11/17 첫 수집에서 모두 실패.
      # 다른 카테고리 코드가 단수형(SPORT 등)이라 단수형·가전 계열을 더 시도한다
      "candidates": ["ELECTRONIC", "DIGITAL_ELECTRONIC", "HOME_APPLIANCE", "DIGITAL_HOME_APPLIANCE", "APPLIANCES",
@@ -53,7 +54,7 @@ CATEGORIES = [
      "keywords": ["가전", "디지털", "노트북", "이어폰", "헤드폰", "청소기", "모니터", "휴대폰", "스마트폰", "케이블", "충전",
                   "TV", "냉장고", "세탁기", "카메라", "스피커", "마우스", "키보드", "태블릿", "밥솥", "가습기", "제습기",
                   "드라이기", "선풍기", "히터", "온풍기", "전기", "에어프라이어", "커피머신", "PC", "배터리", "워치"]},
-    {"key": "INTERIOR", "name": "인테리어", "groupId": "4", "extra": True,
+    {"key": "INTERIOR", "name": "인테리어", "groupId": "4", "extra": True, "code": "INTERIOR",
      "candidates": ["INTERIOR", "FURNITURE", "HOME_INTERIOR", "FURNITURE_INTERIOR"]},
 ]
 HEADERS = {
@@ -292,7 +293,7 @@ def rebuild_index(out):
         months = sorted(n[:-5] for n in os.listdir(d) if n.endswith(".json")) if os.path.isdir(d) else []
         if not months:
             continue
-        cats.append({**{k: v for k, v in c.items() if k != "candidates"}, "months": months})
+        cats.append({**{k: v for k, v in c.items() if k not in ("candidates", "keywords", "code")}, "months": months})
         f_snaps = read_json(os.path.join(d, months[0] + ".json"), {})["snaps"]
         l_snaps = read_json(os.path.join(d, months[-1] + ".json"), {})["snaps"]
         if f_snaps and (first is None or f_snaps[0]["t"] < first):
@@ -402,20 +403,25 @@ def page_codes(gid):
     return out
 
 
-def resolve_code(out, c, ref_ids):
+def resolve_code(out, c, ref_ids, bad=None):
     """추가 카테고리의 카카오 categoryType 값을 찾는다. 저장된 값이 있으면 그대로 쓴다.
     없으면 candidates를 차례로 1번씩만 시도해서, 상품이 오고 그 목록이 다른 카테고리(전체 등)와 똑같지 않은 첫 값을 고른다.
     (모르는 값이면 카카오가 오류를 주거나 전체 랭킹을 그대로 돌려줄 수 있어서 둘 다 거른다)
     후보가 모두 틀리면 랭킹 페이지의 자바스크립트에서 코드처럼 생긴 값을 모아 이어서 시도한다.
     keywords가 있으면 세부 카테고리 이름에 그 단어가 든 상품이 3개 이상일 때만 인정한다."""
+    # bad: 방금 실패한 코드. 주어지면 고정값·저장값을 건너뛰고 다시 찾는다 (카카오가 코드를 바꿨을 때 대비)
+    if c.get("code") and not bad:   # 11/17 수집으로 확인한 값은 고정 (디지털/가전 ELECTRONIC은 브라우저 요청으로도 확인)
+        return c["code"]
     if "candidates" not in c:
         return c["key"]
     path = os.path.join(out, CODES_FILE)
     codes = read_json(path, {})
-    if codes.get(c["key"]):
+    if codes.get(c["key"]) and codes[c["key"]] != bad:
         return codes[c["key"]]
+    codes.pop(c["key"], None)
     used = {x["key"] for x in CATEGORIES if "candidates" not in x} | set(codes.values())
-    tried = set()
+    used |= {x["code"] for x in CATEGORIES if x.get("code") and x["key"] != c["key"]}
+    tried = {bad} if bad else set()
 
     def attempt(code):
         if code in tried or code in used:
@@ -463,7 +469,17 @@ def fetch_all(targets, size, out="data"):
     for c in targets:
         try:
             code = resolve_code(out, c, ref_ids)
-            raw[c["key"]] = fetch(code, size)
+            try:
+                raw[c["key"]] = fetch(code, size)
+                if not raw[c["key"]].get("products") and "candidates" in c:
+                    raise RuntimeError("상품 0개")
+            except Exception as e:  # noqa: BLE001
+                if "candidates" not in c:
+                    raise
+                # 고정 코드가 안 되면 자동 탐색으로 다시 찾는다 (찾으면 category_codes.json에 저장되어 다음부터 그 값 사용)
+                print(f"::warning::{c['name']}: categoryType={code} 실패({e}). 코드를 다시 찾습니다")
+                code = resolve_code(out, c, ref_ids, bad=code)
+                raw[c["key"]] = fetch(code, size)
             ref_ids.add(tuple(p.get("productId") for p in raw[c["key"]].get("products", [])[:20]))
         except Exception as e:  # noqa: BLE001
             print(f"::warning::{c['name']} 받기 실패: {e}")

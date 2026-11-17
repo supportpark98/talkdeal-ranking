@@ -403,22 +403,25 @@ def page_codes(gid):
     return out
 
 
-def resolve_code(out, c, ref_ids):
+def resolve_code(out, c, ref_ids, bad=None):
     """추가 카테고리의 카카오 categoryType 값을 찾는다. 저장된 값이 있으면 그대로 쓴다.
     없으면 candidates를 차례로 1번씩만 시도해서, 상품이 오고 그 목록이 다른 카테고리(전체 등)와 똑같지 않은 첫 값을 고른다.
     (모르는 값이면 카카오가 오류를 주거나 전체 랭킹을 그대로 돌려줄 수 있어서 둘 다 거른다)
     후보가 모두 틀리면 랭킹 페이지의 자바스크립트에서 코드처럼 생긴 값을 모아 이어서 시도한다.
     keywords가 있으면 세부 카테고리 이름에 그 단어가 든 상품이 3개 이상일 때만 인정한다."""
-    if c.get("code"):   # 11/17 수집으로 확인한 값은 고정 (디지털/가전 ELECTRONIC은 브라우저 요청으로도 확인)
+    # bad: 방금 실패한 코드. 주어지면 고정값·저장값을 건너뛰고 다시 찾는다 (카카오가 코드를 바꿨을 때 대비)
+    if c.get("code") and not bad:   # 11/17 수집으로 확인한 값은 고정 (디지털/가전 ELECTRONIC은 브라우저 요청으로도 확인)
         return c["code"]
     if "candidates" not in c:
         return c["key"]
     path = os.path.join(out, CODES_FILE)
     codes = read_json(path, {})
-    if codes.get(c["key"]):
+    if codes.get(c["key"]) and codes[c["key"]] != bad:
         return codes[c["key"]]
+    codes.pop(c["key"], None)
     used = {x["key"] for x in CATEGORIES if "candidates" not in x} | set(codes.values())
-    tried = set()
+    used |= {x["code"] for x in CATEGORIES if x.get("code") and x["key"] != c["key"]}
+    tried = {bad} if bad else set()
 
     def attempt(code):
         if code in tried or code in used:
@@ -466,7 +469,17 @@ def fetch_all(targets, size, out="data"):
     for c in targets:
         try:
             code = resolve_code(out, c, ref_ids)
-            raw[c["key"]] = fetch(code, size)
+            try:
+                raw[c["key"]] = fetch(code, size)
+                if not raw[c["key"]].get("products") and "candidates" in c:
+                    raise RuntimeError("상품 0개")
+            except Exception as e:  # noqa: BLE001
+                if "candidates" not in c:
+                    raise
+                # 고정 코드가 안 되면 자동 탐색으로 다시 찾는다 (찾으면 category_codes.json에 저장되어 다음부터 그 값 사용)
+                print(f"::warning::{c['name']}: categoryType={code} 실패({e}). 코드를 다시 찾습니다")
+                code = resolve_code(out, c, ref_ids, bad=code)
+                raw[c["key"]] = fetch(code, size)
             ref_ids.add(tuple(p.get("productId") for p in raw[c["key"]].get("products", [])[:20]))
         except Exception as e:  # noqa: BLE001
             print(f"::warning::{c['name']} 받기 실패: {e}")

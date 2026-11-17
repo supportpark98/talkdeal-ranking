@@ -44,7 +44,11 @@ CATEGORIES = [
     {"key": "SPORTS", "name": "스포츠/레저", "groupId": "8", "extra": True,
      "candidates": ["SPORTS", "SPORTS_LEISURE", "LEISURE", "SPORT"]},
     {"key": "DIGITAL", "name": "디지털/가전", "groupId": "5", "extra": True,
-     "candidates": ["DIGITAL", "DIGITAL_APPLIANCE", "ELECTRONICS", "APPLIANCE", "DIGITAL_ELECTRONICS"]},
+     # 1차 후보(DIGITAL, DIGITAL_APPLIANCE, ELECTRONICS, APPLIANCE, DIGITAL_ELECTRONICS)는 11/17 첫 수집에서 모두 실패.
+     # 다른 카테고리 코드가 단수형(SPORT 등)이라 단수형·가전 계열을 더 시도한다
+     "candidates": ["ELECTRONIC", "DIGITAL_ELECTRONIC", "HOME_APPLIANCE", "DIGITAL_HOME_APPLIANCE", "APPLIANCES",
+                    "DIGITAL_APPLIANCES", "ELECTRONIC_DIGITAL", "DIGITAL_DEVICE", "IT", "COMPUTER",
+                    "DIGITAL", "DIGITAL_APPLIANCE", "ELECTRONICS", "APPLIANCE", "DIGITAL_ELECTRONICS"]},
     {"key": "INTERIOR", "name": "인테리어", "groupId": "4", "extra": True,
      "candidates": ["INTERIOR", "FURNITURE", "HOME_INTERIOR", "FURNITURE_INTERIOR"]},
 ]

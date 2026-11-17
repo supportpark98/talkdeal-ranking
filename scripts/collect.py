@@ -10,6 +10,8 @@
 - data/raw/YYYY-MM-DD.json.gz          : 하루 한 번(23시 수집) 카카오 응답 원본 전체 (gzip, 대시보드는 안 읽음)
 - data/index.json                     : 카테고리 목록, 카테고리별 월 목록, 처음/마지막 수집 시각
 
+- data/category_codes.json           : 추가 카테고리의 카카오 categoryType 확인값
+
 사용법: python scripts/collect.py [--size 100] [--out data] [--cat CHILD ...]
 """
 import argparse
@@ -32,6 +34,19 @@ CATEGORIES = [
     {"key": "CHILD", "name": "출산/유아동", "groupId": "6"},
     {"key": "LIFE", "name": "생활", "groupId": "9"},
     {"key": "BEAUTY", "name": "뷰티", "groupId": "2"},
+    # 추가 카테고리 (대시보드에서는 '카테고리 더보기' 패널에 표시). extra=True
+    # key는 저장 폴더 이름. 카카오 API의 categoryType 값은 아직 확인 전이라 candidates를 차례로 시도해서
+    # 실제 그 카테고리 상품이 오는 값을 찾으면 data/category_codes.json에 저장해 두고 다음부터 그 값만 쓴다.
+    {"key": "FASHION", "name": "패션", "groupId": "10", "extra": True,
+     "candidates": ["FASHION", "FASHION_CLOTHES", "CLOTHES", "FASHION_GOODS"]},
+    {"key": "FOOD", "name": "식품", "groupId": "3", "extra": True,
+     "candidates": ["FOOD", "FRESH_FOOD", "FOODS"]},
+    {"key": "SPORTS", "name": "스포츠/레저", "groupId": "8", "extra": True,
+     "candidates": ["SPORTS", "SPORTS_LEISURE", "LEISURE", "SPORT"]},
+    {"key": "DIGITAL", "name": "디지털/가전", "groupId": "5", "extra": True,
+     "candidates": ["DIGITAL", "DIGITAL_APPLIANCE", "ELECTRONICS", "APPLIANCE", "DIGITAL_ELECTRONICS"]},
+    {"key": "INTERIOR", "name": "인테리어", "groupId": "4", "extra": True,
+     "candidates": ["INTERIOR", "FURNITURE", "HOME_INTERIOR", "FURNITURE_INTERIOR"]},
 ]
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -269,7 +284,7 @@ def rebuild_index(out):
         months = sorted(n[:-5] for n in os.listdir(d) if n.endswith(".json")) if os.path.isdir(d) else []
         if not months:
             continue
-        cats.append({**c, "months": months})
+        cats.append({**{k: v for k, v in c.items() if k != "candidates"}, "months": months})
         f_snaps = read_json(os.path.join(d, months[0] + ".json"), {})["snaps"]
         l_snaps = read_json(os.path.join(d, months[-1] + ".json"), {})["snaps"]
         if f_snaps and (first is None or f_snaps[0]["t"] < first):
@@ -283,7 +298,10 @@ def rebuild_index(out):
     pdir = os.path.join(out, "products")
     pmonths = sorted(n[:-5] for n in os.listdir(pdir) if n.endswith(".json")) if os.path.isdir(pdir) else []
     write_json(os.path.join(out, "index.json"),
-               {"categories": cats, "productMonths": pmonths, "first": first, "last": last, "count": count, "times": times})
+               {"categories": cats,
+                # 추가 카테고리 전체 목록 (아직 데이터가 없어도 대시보드 '카테고리 더보기'에 '수집 대기'로 보이게)
+                "extras": [{"key": c["key"], "name": c["name"]} for c in CATEGORIES if c.get("extra")],
+                "productMonths": pmonths, "first": first, "last": last, "count": count, "times": times})
 
 
 # 정해진 수집 시각(9·16·18·23시 50분, 백업은 20분 뒤). 각 시각의 40분 ~ 다음 시 40분 사이 실행만 그 슬롯으로 저장한다.
@@ -337,11 +355,45 @@ def looks_broken(out, cat, rows, now_key):
 RETRY_MIN = (5, 10, 15)
 
 
-def fetch_all(targets, size):
+CODES_FILE = "category_codes.json"   # data/category_codes.json = {카테고리 key: 확인된 categoryType}
+
+
+def resolve_code(out, c, ref_ids):
+    """추가 카테고리의 카카오 categoryType 값을 찾는다. 저장된 값이 있으면 그대로 쓴다.
+    없으면 candidates를 차례로 1번씩만 시도해서, 상품이 오고 그 목록이 다른 카테고리(전체 등)와 똑같지 않은 첫 값을 고른다.
+    (모르는 값이면 카카오가 오류를 주거나 전체 랭킹을 그대로 돌려줄 수 있어서 둘 다 거른다)"""
+    if "candidates" not in c:
+        return c["key"]
+    path = os.path.join(out, CODES_FILE)
+    codes = read_json(path, {})
+    if codes.get(c["key"]):
+        return codes[c["key"]]
+    for code in c["candidates"] + [c["groupId"]]:
+        try:
+            d = fetch(code, 20, retries=1)
+        except Exception:  # noqa: BLE001
+            continue
+        ids = tuple(p.get("productId") for p in d.get("products", []))
+        if not ids or ids in ref_ids:
+            print(f"{c['name']}: categoryType={code} 은 상품이 없거나 다른 카테고리와 같아서 제외")
+            continue
+        names = sorted({p.get("categoryName") for p in d.get("products", []) if p.get("categoryName")})
+        print(f"{c['name']}: categoryType={code} 확인 (세부 카테고리 예: {', '.join(names[:8])})")
+        codes[c["key"]] = code
+        write_json(path, codes)
+        return code
+    raise RuntimeError(f"categoryType 값을 찾지 못함 (시도: {', '.join(c['candidates'])})")
+
+
+def fetch_all(targets, size, out="data"):
     raw = {}
+    # 추가 카테고리 코드 확인용: 이미 받은 카테고리들의 상위 20개 목록 (같으면 엉뚱한 값으로 판단)
+    ref_ids = set()
     for c in targets:
         try:
-            raw[c["key"]] = fetch(c["key"], size)
+            code = resolve_code(out, c, ref_ids)
+            raw[c["key"]] = fetch(code, size)
+            ref_ids.add(tuple(p.get("productId") for p in raw[c["key"]].get("products", [])[:20]))
         except Exception as e:  # noqa: BLE001
             print(f"::warning::{c['name']} 받기 실패: {e}")
     return raw
@@ -388,7 +440,7 @@ def main():
     failed = []
     mx_cache = {}
     # 먼저 전부 받아 두고, 카카오 집계가 이상해 보이면(진행 중인 상위 딜이 대거 사라짐) 5·10·15분 뒤에 다시 받는다
-    raw = fetch_all(targets, args.size)
+    raw = fetch_all(targets, args.size, args.out)
     anomaly = False
     if args.skip_if_saved:
         broken = broken_cats(args.out, targets, raw)
@@ -397,7 +449,7 @@ def main():
                 break
             print(f"::warning::{', '.join(broken)}: 진행 중인 상위 딜이 5개 이상 랭킹에서 사라짐. {wait}분 뒤 다시 받음")
             time.sleep(wait * 60)
-            raw = fetch_all(targets, args.size)
+            raw = fetch_all(targets, args.size, args.out)
             broken = broken_cats(args.out, targets, raw)
         if broken:
             anomaly = True

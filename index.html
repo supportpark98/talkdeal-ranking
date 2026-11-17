@@ -29,6 +29,27 @@ h1 .logo{flex:none;border-radius:6px}
 .tabs button{border:none;border-radius:10px 10px 0 0;background:rgba(0,0,0,.06);color:var(--accent-ink);font-size:15px;font-weight:700;padding:9px 18px;white-space:nowrap}
 .tabs button:hover{background:rgba(0,0,0,.12);border:none}
 .tabs button.on{background:var(--bg);color:var(--text)}
+/* 카테고리 더보기: 주 탭보다 덜 눈에 띄게, 누르면 오른쪽 패널 */
+.tabs button.more{margin-left:auto;background:none;font-size:13px;font-weight:600;opacity:.75;padding:9px 12px}
+.tabs button.more:hover{background:rgba(0,0,0,.06);opacity:1}
+.tabs button.more.on{background:var(--bg);color:var(--text);opacity:1}
+.drawer-bg{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:90;opacity:0;transition:opacity .18s}
+.drawer-bg.open{opacity:1}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(300px,86vw);background:var(--card);color:var(--text);z-index:91;box-shadow:-8px 0 24px rgba(0,0,0,.14);transform:translateX(100%);transition:transform .2s ease;display:flex;flex-direction:column}
+.drawer.open{transform:none}
+.drawer[hidden],.drawer-bg[hidden]{display:none}
+@media (max-width:520px){.tabs button{padding:8px 12px;font-size:14px}.tabs button.more{padding:8px 10px;font-size:12px}}
+.drawer .dh{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px;border-bottom:1px solid var(--line)}
+.drawer .dh b{font-size:16px}
+.drawer .dh button{border:none;background:none;font-size:20px;line-height:1;padding:4px 8px;color:var(--muted)}
+.drawer .dnote{font-size:12px;color:var(--muted);padding:10px 16px 4px}
+.drawer ul{list-style:none;margin:0;padding:6px 10px 16px;overflow:auto}
+.drawer li button{width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;border:none;background:none;border-radius:10px;padding:12px 10px;font-size:15px;font-weight:600;color:var(--text)}
+.drawer li button:hover:not(:disabled){background:var(--bg)}
+.drawer li button.on{background:var(--accent);color:var(--accent-ink)}
+.drawer li button:disabled{color:var(--muted);cursor:default;font-weight:500}
+.drawer li .st{font-size:12px;font-weight:500;color:var(--muted)}
+.drawer li button.on .st{color:inherit;opacity:.7}
 .tag{display:inline-block;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:4px;vertical-align:1px}
 .tag.deal{background:#fee500;color:#3c1e1e} .tag.gen{background:none;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
 .tag.rise{background:#fde8e8;color:#c8323a} .tag.ended{background:var(--line);color:var(--muted)} .tag.live{background:#e5484d;color:#fff}
@@ -235,6 +256,12 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
     <nav class="tabs" id="cattabs" role="tablist" aria-label="카테고리"></nav>
   </div>
 </header>
+<div class="drawer-bg" id="moreBg" hidden></div>
+<aside class="drawer" id="moreDrawer" aria-label="카테고리 더보기" aria-hidden="true" hidden>
+  <div class="dh"><b>카테고리 더보기</b><button type="button" id="moreClose" aria-label="닫기">×</button></div>
+  <div class="dnote">자주 보지 않는 카테고리예요. 고르면 아래 대시보드가 그 카테고리로 바뀝니다.</div>
+  <ul id="moreList"></ul>
+</aside>
 <main class="wrap">
   <section class="card">
     <div class="range">
@@ -1226,21 +1253,49 @@ async function init(){
     $('#basis').textContent = '데이터 없음'; return;
   }
   S.index.firstMs = Date.parse(S.index.first); S.index.lastMs = Date.parse(S.index.last);
-  // 탭 순서: 출산/유아동 · 생활 · 뷰티 · 전체 (기본은 출산/유아동)
-  const ORDER = ['CHILD', 'LIFE', 'BEAUTY', 'ALL'], ord = k => { const i = ORDER.indexOf(k); return i < 0 ? 99 : i; };
+  // 탭 순서: 출산/유아동 · 생활 · 뷰티 · 전체 (기본은 출산/유아동). 추가 카테고리는 '카테고리 더보기' 패널에 이 순서로
+  const ORDER = ['CHILD', 'LIFE', 'BEAUTY', 'ALL', 'FASHION', 'FOOD', 'SPORTS', 'DIGITAL', 'INTERIOR'], ord = k => { const i = ORDER.indexOf(k); return i < 0 ? 99 : i; };
   S.index.categories = S.index.categories.slice().sort((a, b) => ord(a.key) - ord(b.key));
   const want = new URLSearchParams(location.search).get('cat');
   S.cat = S.index.categories.find(c => c.key === want) || S.index.categories[0];
+  // 주 탭(기본 4개)과 '카테고리 더보기' 패널(extra 카테고리)로 나눈다
+  const mainCats = S.index.categories.filter(c => !c.extra);
+  const extraList = (S.index.extras || S.index.categories.filter(c => c.extra)).slice().sort((a, b) => ord(a.key) - ord(b.key))
+    .map(e => ({...e, data: S.index.categories.find(c => c.key === e.key)}));
   const tabs = $('#cattabs');
-  tabs.innerHTML = S.index.categories.map(c => `<button role="tab" data-cat="${c.key}">${esc(c.name)}</button>`).join('');
-  const markTab = () => tabs.querySelectorAll('button').forEach(b => { const on = b.dataset.cat === S.cat.key; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
-  markTab();
-  tabs.querySelectorAll('button').forEach(b => b.onclick = () => {
-    if(b.dataset.cat === S.cat.key) return;
-    S.cat = S.index.categories.find(c => c.key === b.dataset.cat); markTab();
+  tabs.innerHTML = mainCats.map(c => `<button role="tab" data-cat="${c.key}">${esc(c.name)}</button>`).join('')
+    + (extraList.length ? `<button type="button" class="more" id="moreBtn" aria-haspopup="dialog">카테고리 더보기 ›</button>` : '');
+  const moreBtn = $('#moreBtn'), drawer = $('#moreDrawer'), bg = $('#moreBg');
+  const markTab = () => {
+    tabs.querySelectorAll('button[data-cat]').forEach(b => { const on = b.dataset.cat === S.cat.key; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+    if(moreBtn){ moreBtn.classList.toggle('on', !!S.cat.extra); moreBtn.textContent = S.cat.extra ? `더보기 · ${S.cat.name} ›` : '카테고리 더보기 ›'; }
+    document.querySelectorAll('#moreList button').forEach(b => b.classList.toggle('on', b.dataset.cat === S.cat.key));
+  };
+  const selectCat = key => {
+    if(key === S.cat.key) return;
+    S.cat = S.index.categories.find(c => c.key === key); markTab();
     history.replaceState(null, '', '?cat=' + S.cat.key);
     S.picked = []; S.shown = null; S.fpicked = []; $('#cq').value = ''; update();
-  });
+  };
+  const openMore = on => {
+    if(on){
+      drawer.hidden = bg.hidden = false; drawer.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => { drawer.classList.add('open'); bg.classList.add('open'); });
+      (drawer.querySelector('li button.on') || drawer.querySelector('li button:not(:disabled)') || $('#moreClose')).focus();
+    }else{
+      drawer.classList.remove('open'); bg.classList.remove('open'); drawer.setAttribute('aria-hidden', 'true');
+      setTimeout(() => { if(!drawer.classList.contains('open')) drawer.hidden = bg.hidden = true; }, 200);
+    }
+  };
+  $('#moreList').innerHTML = extraList.map(e => e.data
+    ? `<li><button type="button" data-cat="${e.key}">${esc(e.name)}<span class="st">›</span></button></li>`
+    : `<li><button type="button" disabled title="다음 정기 수집부터 데이터가 쌓여요">${esc(e.name)}<span class="st">수집 대기 중</span></button></li>`).join('');
+  document.querySelectorAll('#moreList button[data-cat]').forEach(b => b.onclick = () => { selectCat(b.dataset.cat); openMore(false); });
+  if(moreBtn) moreBtn.onclick = () => openMore(true);
+  $('#moreClose').onclick = bg.onclick = () => openMore(false);
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && !drawer.hidden) openMore(false); });
+  markTab();
+  tabs.querySelectorAll('button[data-cat]').forEach(b => b.onclick = () => selectCat(b.dataset.cat));
   S.bound = firstBound();
   $('#since').textContent = `${S.bound.y}년 ${S.bound.m}월 ${S.bound.d}일 ${S.bound.slot.label} 데이터부터 조회할 수 있습니다.`;
   buildAvail();

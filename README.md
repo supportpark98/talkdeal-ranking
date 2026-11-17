@@ -31,6 +31,18 @@
 
 용량: 1회 수집(9개 카테고리)이 약 55KB라 1년에 70MB 안팎입니다.
 
+## 수집 이상 메일 알림
+
+`scripts/check_health.py`가 수집할 때마다 결과를 검사하고, 이상하면 메일을 보냅니다.
+
+- 수집 프로그램이 오류로 멈춤
+- 카테고리 받기 실패, 상품 0개, 또는 평소(최근 8번 중앙값)의 절반 미만
+- 상품명·가격·순위가 빈 상품이 10% 이상
+- 마지막 수집이 24시간 넘게 없음 (`.github/workflows/health.yml`, 매일 한국 12시)
+
+메일 설정은 저장소 Settings > Secrets and variables > Actions의 Secret `MAIL_USERNAME`(보내는 Gmail), `MAIL_PASSWORD`(Gmail 앱 비밀번호), `MAIL_TO`(받는 주소, 쉼표로 구분)입니다.
+테스트 메일: Actions > 수집 상태 점검 > Run workflow.
+
 ## 직접 실행
 
 ```bash

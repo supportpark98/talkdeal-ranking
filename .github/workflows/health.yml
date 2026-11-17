@@ -1,0 +1,35 @@
+name: 수집 상태 점검
+
+on:
+  schedule:
+    # 매일 한국 12:00 (UTC 03:00). 마지막 수집이 24시간 넘게 없으면 메일 (예약 실행이 멈춘 경우 대비)
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "알림 테스트 메일 보내기"
+        type: boolean
+        default: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 점검
+        env:
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+        run: |
+          if [ "${{ inputs.test }}" = "true" ]; then
+            python scripts/check_health.py test
+          else
+            python scripts/check_health.py stale
+          fi

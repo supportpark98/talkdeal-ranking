@@ -25,7 +25,15 @@ h1{display:flex;align-items:center;gap:8px}
 h1 .logo{flex:none;border-radius:6px}
 .sub{font-size:13px;opacity:.8;margin-top:2px}
 .sub2{font-size:12px;opacity:.7;margin-top:1px}
-.visits b{font-weight:700}
+.toprow{display:flex;align-items:center;justify-content:space-between;gap:6px 12px;flex-wrap:wrap}
+.visits{font-size:12px;font-weight:600;background:rgba(0,0,0,.08);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.visits b{font-weight:800}
+.basisrow{position:relative}
+.info{display:inline-block;margin-left:6px;vertical-align:1px}
+.info button{width:16px;height:16px;padding:0;border-radius:50%;border:1.5px solid currentColor;background:none;color:inherit;font:700 10px/1 Georgia,serif;font-style:italic;opacity:.75;cursor:pointer}
+.info button:hover{opacity:1}
+.info .tip{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:50;width:max-content;max-width:min(300px,80vw);background:#1a1d23;color:#fff;font-size:12px;line-height:1.5;padding:8px 10px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.info:hover .tip,.info.open .tip{display:block}
 .tabs{display:flex;gap:4px;margin-top:14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .tabs button{border:none;border-radius:10px 10px 0 0;background:rgba(0,0,0,.06);color:var(--accent-ink);font-size:15px;font-weight:700;padding:9px 18px;white-space:nowrap}
 .tabs button:hover{background:rgba(0,0,0,.12);border:none}
@@ -253,7 +261,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
 <body>
 <header>
   <div class="wrap">
-    <h1><img class="logo" src="icon.svg" alt="" width="26" height="26">카카오 톡딜 랭킹 대시보드</h1><div class="sub" id="basis">불러오는 중…</div><div class="sub sub2">*랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</div><div class="sub sub2 anote" id="chartNote"></div><div class="sub sub2 visits" id="visits" hidden></div>
+    <div class="toprow"><h1><img class="logo" src="icon.svg" alt="" width="26" height="26">카카오 톡딜 랭킹 대시보드</h1><div class="visits" id="visits" hidden></div></div>
+    <div class="sub basisrow"><span id="basis">불러오는 중…</span><span class="info"><button type="button" id="infoBtn" aria-label="수집 일정 안내" aria-expanded="false">i</button><span class="tip" id="infoTip" role="tooltip">랭킹 데이터는 일간 기준으로 매일 9시, 16시, 18시, 23시 자동으로 수집됩니다.</span></span></div><div class="sub sub2 anote" id="chartNote"></div>
     <nav class="tabs" id="cattabs" role="tablist" aria-label="카테고리"></nav>
   </div>
 </header>
@@ -355,6 +364,12 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
 <button id="toBottom" type="button" aria-label="맨 아래로" title="맨 아래로">↓</button>
 
 <script>
+// ⓘ 수집 일정 안내: 모바일은 눌러서 열고, 바깥을 누르면 닫힘
+document.addEventListener('click', e => {
+  const box = document.querySelector('.info'), btn = document.getElementById('infoBtn');
+  const open = btn.contains(e.target) ? !box.classList.contains('open') : false;
+  box.classList.toggle('open', open); btn.setAttribute('aria-expanded', open);
+});
 // 방문자 수 집계 (GoatCounter). 사이트 코드만 바꾸면 됨. 비워두면 집계·표시 모두 꺼짐
 const GC_CODE = 'talkdealrank';
 // ?cat= 같은 주소 차이로 같은 사람이 두 번 세지지 않도록 페이지 경로를 하나로 고정
@@ -372,7 +387,8 @@ if (GC_CODE) {
     const [t, all] = await Promise.all([get(`?start=${today}`), get('')]);
     if (all == null) return; // 설정 전이거나 접속 실패 → 조용히 숨김
     const el = document.getElementById('visits');
-    el.innerHTML = '방문자 오늘 <b></b>명 · 누적 <b></b>명';
+    el.innerHTML = '👀 오늘 <b></b> · 누적 <b></b>';
+    el.title = '방문자 수 (오늘 · 누적)';
     const [bt, ba] = el.querySelectorAll('b');
     bt.textContent = t ?? '0'; ba.textContent = all;
     el.hidden = false;

@@ -176,7 +176,8 @@ def read_json(path, default):
 
 
 def write_json(path, obj):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.dirname(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, separators=(",", ":"))
@@ -462,8 +463,13 @@ def resolve_code(out, c, ref_ids, bad=None):
     raise RuntimeError(f"categoryType 값을 찾지 못함 (후보 {len(c['candidates'])}개 + 페이지에서 찾은 값 {min(len(extra), 80)}개 시도)")
 
 
+# 이번 실행에서 카테고리별로 받기 실패한 이유 (수집 이상 메일에 그대로 넣음)
+FETCH_ERRORS = {}
+
+
 def fetch_all(targets, size, out="data"):
     raw = {}
+    FETCH_ERRORS.clear()
     # 추가 카테고리 코드 확인용: 이미 받은 카테고리들의 상위 20개 목록 (같으면 엉뚱한 값으로 판단)
     ref_ids = set()
     for c in targets:
@@ -482,6 +488,7 @@ def fetch_all(targets, size, out="data"):
                 raw[c["key"]] = fetch(code, size)
             ref_ids.add(tuple(p.get("productId") for p in raw[c["key"]].get("products", [])[:20]))
         except Exception as e:  # noqa: BLE001
+            FETCH_ERRORS[c["key"]] = str(e)
             print(f"::warning::{c['name']} 받기 실패: {e}")
     return raw
 
@@ -503,7 +510,15 @@ def main():
     ap.add_argument("--skip-if-saved", action="store_true")
     # 23시 수집이 아니어도 응답 원본을 저장 (수동 테스트용)
     ap.add_argument("--raw", action="store_true")
+    # 수집 결과 요약(카테고리별 상품 수, 빈 값 수, 실패 이유)을 이 파일에 저장 -> scripts/check_health.py가 읽어서 이상하면 메일 발송
+    ap.add_argument("--report")
     args = ap.parse_args()
+    report = {"saved": False, "categories": {}}
+
+    def write_report(**kw):
+        if args.report:
+            report.update(kw)
+            write_json(args.report, report)
 
     targets = [c for c in CATEGORIES if not args.cat or c["key"] in args.cat]
     if args.skip_if_saved:
@@ -511,18 +526,21 @@ def main():
         slot = slot_of(now)
         if not slot:
             print(f"{now:%m/%d %H:%M}은 정해진 수집 시각이 아니라 건너뜀 (늦게 시작된 예약 실행)")
+            write_report(skipped="수집 시각 아님")
             return
         d = os.path.join(args.out, "monthly", targets[0]["key"])
         months = sorted(n for n in os.listdir(d) if n.endswith(".json")) if os.path.isdir(d) else []
         snaps = read_json(os.path.join(d, months[-1]), {}).get("snaps", []) if months else []
         if any(slot_of(datetime.fromisoformat(x["t"])) == slot for x in snaps[-3:]):
             print(f"{slot[0]} {slot[1]}시 수집은 이미 저장되어 있어 건너뜀")
+            write_report(skipped="이미 저장됨")
             return
         # 카카오가 아직 그 시각 집계를 반영하기 전이면(예: 9시 슬롯인데 집계가 8시) 저장하지 않고 다음 실행(백업)에 맡긴다
         agg = str(fetch(targets[0]["key"], 1).get("aggregatedAt") or "")
         want = slot[0].replace("-", "") + f"{slot[1]:02d}"
         if not agg.startswith(want):
             print(f"집계 {agg}가 {slot[0]} {slot[1]}시 기준이 아니라 건너뜀")
+            write_report(skipped="카카오 집계 반영 전")
             return
     failed = []
     mx_cache = {}
@@ -543,21 +561,29 @@ def main():
             print(f"::warning::{', '.join(broken)}: 다시 받아도 집계 이상. 받은 그대로 저장하고 다음 정상 수집 때 빠진 상품을 채움")
     t_iso = datetime.now(KST).isoformat(timespec="seconds")
     for c in targets:
+        info = report["categories"][c["key"]] = {"name": c["name"], "count": 0}
         try:
             if c["key"] not in raw:
-                raise RuntimeError("응답 없음")
+                raise RuntimeError(FETCH_ERRORS.get(c["key"]) or "응답 없음")
             data = raw[c["key"]]
             picked = [pick(p) for p in data.get("products", [])]
             if not picked:
                 raise RuntimeError("상품이 0개 (API 응답 형식이 바뀌었을 수 있음)")
             rows = [r for r, _ in picked]
             metas = {str(r["productId"]): m for r, m in picked}
+            info["count"] = len(rows)
+            # 핵심 값(상품명, 가격, 순위)이 빈 상품 수
+            info["missing"] = {"name": sum(1 for _, m in picked if not m.get("name")),
+                               "price": sum(1 for r in rows if r.get("price") is None),
+                               "rank": sum(1 for r in rows if r.get("rank") is None)}
             filled = fill_max_benefit(rows, mx_cache)
             save_snapshot(args.out, c["key"], t_iso, data.get("aggregatedAt"), rows, metas, anomaly)
             print(f"{c['name']}: {len(rows)}개 (집계 {data.get('aggregatedAt')}, 최대혜택가 보충 {filled}개)")
         except Exception as e:  # noqa: BLE001
             failed.append(c["key"])
+            info["error"] = str(e)
             print(f"::warning::{c['name']} 실패: {e}")
+    write_report(saved=True, t=t_iso, anomaly=anomaly)
     rebuild_index(args.out)
     save_raw(args.out, t_iso, raw, args.raw)
     if args.hourly_test:

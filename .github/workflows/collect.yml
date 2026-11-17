@@ -33,7 +33,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: 랭킹 수집
-        run: python scripts/collect.py --size 100 --out data --skip-if-saved
+        id: collect
+        shell: bash
+        # 실행 기록을 collect.log에도 남겨서, 멈추면 알림 메일에 마지막 부분을 붙인다
+        run: python scripts/collect.py --size 100 --out data --skip-if-saved --report run_report.json 2>&1 | tee collect.log
       - name: 결과 커밋
         run: |
           git config user.name "github-actions[bot]"
@@ -43,3 +46,11 @@ jobs:
           git commit -m "data: $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M') 랭킹 수집"
           git pull --rebase origin main
           git push origin HEAD:main
+      # 수집이 실패했거나 결과가 이상하면(0개, 급감, 빈 값) 메일로 알린다. 받는 주소는 MAIL_TO Secret
+      - name: 수집 결과 검사 및 알림
+        if: always()
+        env:
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+        run: python scripts/check_health.py collect --report run_report.json --log collect.log --outcome "${{ steps.collect.outcome }}"

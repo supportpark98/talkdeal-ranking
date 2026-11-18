@@ -139,6 +139,7 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
 .qwrap{flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px}
 .qwrap input{width:100%;box-sizing:border-box}
 .qrow .lbl{flex:none;width:28px}
+.qrow label.qpast{flex:none;margin-left:6px;cursor:pointer}
 .qwrap > .qnote{padding-left:41px}
 .mselbtn{min-width:180px}
 .qnote{font-size:12px;color:var(--muted)}
@@ -188,7 +189,8 @@ button.textbtn:hover{color:var(--text);text-decoration:underline}
   .mselbtn,#cq{font-size:13px}
   .mselpop label{font-size:13px}
   .qwrap{width:100%;min-width:0}
-  .qrow{display:grid !important;grid-template-columns:30px 1fr;gap:5px}
+  .qrow{display:grid !important;grid-template-columns:30px 1fr auto;gap:5px}
+  .qrow label.qpast{margin-left:0;font-size:12px}
   .qwrap > .qnote{padding-left:42px}
 }
 .chartbar{align-items:center;margin-top:6px}
@@ -289,7 +291,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
       <span class="lcol"><span class="lrow"><span class="grp"><span class="lbl">톡딜상품 여부</span><span class="msel ssel" id="dealBox"><select id="deal" hidden><option value="">전체</option><option value="deal">톡딜만</option></select><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden><label data-v="">전체</label><label data-v="deal">톡딜만</label></div></span></span>
       <span class="grp"><span class="lbl">카테고리</span><span class="msel" id="csub"><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden></div></span></span>
       <span class="grp"><span class="lbl">스토어</span><span class="msel" id="ssub"><button type="button" class="mselbtn" aria-haspopup="true" aria-expanded="false">전체</button><div class="mselpop" hidden></div></span></span></span></span>
-      <span class="qwrap"><span class="grp qrow"><span class="lbl">검색</span><input id="cq" type="search" placeholder="스토어명, 키워드 또는 상품코드 검색"></span><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
+      <span class="qwrap"><span class="grp qrow"><span class="lbl">검색</span><input id="cq" type="search" placeholder="스토어명, 키워드 또는 상품코드 검색"><label class="chk qpast" title="켜면 조회 기간 중 상품명에 검색어가 들어 있었던 딜만, 그 딜의 값으로 보여줍니다 (이후 이름이 바뀌었거나 같은 코드로 다시 연 딜은 제외)"><input type="checkbox" id="pastName"> 과거 상품명 포함</label></span><span class="qnote">*쉼표로 여러 개를 동시에 검색할 수 있습니다. (예: 베베그로우, 더블하트, 모윰)</span></span>
     </div>
     <div class="rangeinfo" id="rangeinfo"></div>
   </section>
@@ -357,6 +359,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   집계 오류 보정 = 카카오 집계 오류로 일부 상품이 빠진 수집분은, 빠진 상품의 주문수·누적 판매량·순위를 앞뒤 정상 수집값 사이에서 수집 시각 비율로 채운 값 (같은 딜이 앞뒤 수집에 모두 있을 때만, 다음 정상 수집 때 자동 보정)<br>
   추이의 회색 점선 = 딜이 끝났거나 100위권 밖으로 빠져 값이 없는 시점. 추정매출·주문수의 마지막 값을 이어서 표시하고 합계에도 포함. 조회 기간 시작 전에 끝난 딜은 제외<br>
   추이의 ◎ = 라이브 반영 시점 (라이브 직후 첫 수집). 점을 누르면 라이브 시각과 라이브 추정매출이 보입니다<br>
+  과거 상품명 포함 = 검색창 오른쪽 체크. 조회 기간 중 상품명(또는 스토어명·상품코드)에 검색어가 들어 있던 딜만 찾아, 그 딜의 값과 당시 상품명으로 표시. 같은 상품코드라도 검색어가 없던 다른 딜(다시 연 딜 등)은 빠집니다. 딜 도중 이름이 바뀌었으면 그 딜 전체가 포함됩니다<br>
   합쳐보기 합계 = 묶인 딜이 모두 끝난 뒤 새 딜이 열리면, 이전 딜 합계를 빼고 새 딜 값부터 다시 셉니다<br>
   일/주/월 단위는 해당 기간의 마지막 수집값 기준이며, 자정 이후 수집분은 전날로 셉니다.<br>
   방문자 수 = GoatCounter로 집계 (쿠키 없이, 같은 인터넷·같은 브라우저로 8시간 안에 다시 오면 1명으로 셈. 개인을 식별하는 정보는 저장하지 않음). 숫자는 최대 4시간 늦게 반영될 수 있습니다.
@@ -563,6 +566,7 @@ async function ensureMonths(s, e){
   { const keep = new Map(); S.snaps.forEach(s => { const o = slotOf(s.t); keep.set(o ? `${o.y}-${o.m}-${o.d}-${o.id}` : s.t, s); });
     S.snaps = [...keep.values()].sort((a,b)=>a.t-b.t); }
   accumulateSales(S.snaps);
+  S.allSnaps = S.snaps;
 }
 // 추정매출은 수집마다 '늘어난 주문수 × 그때 최대혜택가'를 더해 간다 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로).
 // 최대혜택가가 없는 수집값(첫날 11/8 일부 상품)은 그때 톡딜가로 대신 계산하고 salesFb=true로 표시한다.
@@ -586,16 +590,44 @@ function accumulateSales(snaps){
 }
 
 // 상품 정보: 조회 기간 종료 시점(S.end) 기준 값. 그 뒤에 이름·이미지 등이 바뀐 상품은 그때 값을 쓴다
-function product(id){
-  const p = S.products[id] || {}, h = S.changes[id];
-  if(!h || !S.end) return p;
-  let e = h[0]; for(const x of h){ if(x.t <= S.end) e = x; else break; }
+// 과거 상품명 포함 모드에서는 상품마다 표에 쓰인 딜의 마지막 수집 시점(S.nameT) 기준 값
+function product(id, at){
+  const p = S.products[id] || {}, h = S.changes[id], T = at ?? (S.nameT && S.nameT.get(String(id))) ?? S.end;
+  if(!h || !T) return p;
+  let e = h[0]; for(const x of h){ if(x.t <= T) e = x; else break; }
   const {t, ...v} = e; return {...p, ...v};
 }
 
+// ---- 과거 상품명 포함 검색 ----
+// 딜 = 상품코드 + 딜 오픈일자. 톡딜이 아닌 줄은 딜이 없으니 그 수집 시점 줄만 따로 본다. 조회 기간 안의 각 수집 시점에서
+// 그때의 상품명·스토어명·상품코드에 검색어가 들어 있던 딜만 남긴다. 남긴 딜의 수집값은 기간 밖 것도 그대로 둔다
+// (끝난 딜 채우기·기간 시작 전 값 이어 쓰기에 필요). 추정매출은 이미 딜마다 따로 쌓여 있어 다시 계산하지 않는다.
+const dealKey = r => r.productId + '|' + (r.ordering != null ? r.dealStart : 'g');
+function pastOn(){ return $('#pastName').checked && terms($('#cq').value).length > 0; }
+function applyPastName(){
+  if(!pastOn()) return;
+  const ts = terms($('#cq').value), keep = new Set(), hits = new Map(), nameT = new Map();
+  S.inRange.forEach(sn => sn.rows.forEach(r => {
+    const id = String(r.productId), p = product(id, sn.t);
+    const text = ((p.name||'')+' '+(p.brand||'')+' '+id).toLowerCase(), hs = ts.filter(t => text.includes(t));
+    if(!hs.length) return;
+    keep.add(r.ordering != null ? dealKey(r) : dealKey(r) + '|' + sn.t); const h = hits.get(id) || new Set(); hs.forEach(t => h.add(t)); hits.set(id, h);
+  }));
+  S.snaps = S.allSnaps.map(sn => ({...sn, rows: sn.rows.filter(r => keep.has(r.ordering != null ? dealKey(r) : dealKey(r) + '|' + sn.t))}));
+  S.inRange = S.snaps.filter(s => s.t >= S.start && s.t <= S.end);
+  // 표시 상품명: 그 상품의 남은 딜이 조회 기간 안에서 마지막으로 수집된 시점의 이름
+  S.inRange.forEach(sn => sn.rows.forEach(r => nameT.set(String(r.productId), sn.t)));
+  S.nameT = nameT; S.pastHit = hits;
+}
+// 검색어 일치: 과거 상품명 포함 모드에서는 이미 딜 단위로 걸러 놓았으므로 남은 상품은 모두 일치
+const qhit = (text, ts) => S.pastHit ? true : hit(text, ts);
+const qhitTerm = (id, text, t) => S.pastHit ? !!(S.pastHit.get(String(id)) || new Set()).has(t) : text.includes(t);
+
 async function update(){
   await ensureMonths(S.start, S.end);
+  S.snaps = S.allSnaps || S.snaps; S.nameT = null; S.pastHit = null;
   S.inRange = S.snaps.filter(s => s.t >= S.start && s.t <= S.end);
+  applyPastName();
   const multiDay = S.startDay !== S.endDay;
   // 시간/일/주/월 버튼은 항상 표시. 하루 안의 기간으로 새로 바꿨을 때만 기본값을 '시간'으로 (그 뒤 사용자가 고른 단위는 유지)
   const rk = S.start + '|' + S.end;
@@ -684,7 +716,7 @@ async function update(){
 function tiles(){
   // 위쪽 세부 카테고리·검색 필터를 함께 적용
   const ts = terms($('#cq').value), dl = !!$('#deal').value;
-  const rs = S.cur.rows.filter(r => (!ts.length || hit(((r.name||'')+' '+(r.brand||'')+' '+r.productId).toLowerCase(), ts)) && catOk(r.category) && storeOk(r.brand) && okDeal(r)), top = rs[0];
+  const rs = S.cur.rows.filter(r => (!ts.length || qhit(((r.name||'')+' '+(r.brand||'')+' '+r.productId).toLowerCase(), ts)) && catOk(r.category) && storeOk(r.brand) && okDeal(r)), top = rs[0];
   if(!top){ $('#tiles').innerHTML = '<div class="tile"><div class="k">요약</div><div class="v">-</div><div class="d">조건에 맞는 상품이 없어요</div></div>'; return; }
   // 브랜드별 상품 수 / 추정매출 합계 (같으면 더 높은 순위의 브랜드 먼저)
   const B = new Map();
@@ -796,7 +828,7 @@ function setupCatMenu(onChange, key = 'csub'){
 const okDeal = r => (!$('#deal').value || r.ordering != null) && (!$('#liveOnly').checked || S.liveIds.has(String(r.productId)));
 function tableRows(){
   const ts = terms($('#cq').value), f = 'all';
-  let rs = S.cur.rows.filter(r => !ts.length || hit(((r.name||'')+' '+(r.brand||'')+' '+r.productId).toLowerCase(), ts));
+  let rs = S.cur.rows.filter(r => !ts.length || qhit(((r.name||'')+' '+(r.brand||'')+' '+r.productId).toLowerCase(), ts));
   if($('#deal').value || $('#liveOnly').checked) rs = rs.filter(okDeal);
   if(S.csub.length) rs = rs.filter(r=>catOk(r.category));
   if(S.ssub.length) rs = rs.filter(r=>storeOk(r.brand));
@@ -1060,7 +1092,7 @@ function drawChart(){
   if(q || storeSum){
     const seen = new Set(); S.inRange.forEach(s => s.rows.forEach(r => seen.add(String(r.productId))));
     const txt = id => { const p = product(id); return ((p.name||'')+' '+(p.brand||'')+' '+id).toLowerCase(); };
-    const match = [...seen].filter(id => (!ts.length || hit(txt(id), ts)) && catOk(product(id).category) && storeOk(product(id).brand) && (!dealOnly || S.inRange.some(s => s.rows.some(r => String(r.productId) === id && r.ordering != null))) && (!liveOnly || S.liveIds.has(id)));
+    const match = [...seen].filter(id => (!ts.length || qhit(txt(id), ts)) && catOk(product(id).category) && storeOk(product(id).brand) && (!dealOnly || S.inRange.some(s => s.rows.some(r => String(r.productId) === id && r.ordering != null))) && (!liveOnly || S.liveIds.has(id)));
     S.matchIds = new Set(match);
     // 종료 시점 순위가 높은 순. 종료 시점에 랭킹에 없던 상품은 그 뒤에, 마지막으로 보인 시점이 늦고 순위가 높은 순
     const lastRank = id => { for(let i=bs.length-1;i>=0;i--){ const r = bs[i].map.get(id); if(r) return [bs.length-1-i, r.rank]; } return [1e9, 1e9]; };
@@ -1102,7 +1134,7 @@ function drawChart(){
       } else {
       // 검색어별 합쳐보기도 표에서 직접 고른(노란) 상품이 있으면 그 상품들만 더함
       const base = (S.fpicked.length > 0 || S.fnone) ? S.fpicked.filter(id => S.matchIds.has(id)) : match;
-      datasets = ts.length ? ts.map(t => { const ms = base.filter(id => txt(id).includes(t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ids: ms, ...sumOf(ms)}; })
+      datasets = ts.length ? ts.map(t => { const ms = base.filter(id => qhitTerm(id, txt(id), t)); return {label:`"${t}"${csub?' · '+csub:''} 합계 (${ms.length}개 상품)`, ids: ms, ...sumOf(ms)}; })
         : [{label:`${csub || '톡딜상품'} 합계 (${base.length}개 상품)`, ids: base, ...sumOf(base)}]; }
       // 합계에 들어간 상품은 랭킹 표에 노란색으로
       ids = [...new Set(datasets.flatMap(d => d.ids))];
@@ -1348,7 +1380,7 @@ async function init(){
   buildPicker($('#startPick')); buildPicker($('#endPick'));
 
   
-  $('#cq').oninput = () => { tiles(); drawChart(); render(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); setupCatMenu(() => { drawChart(); tiles(); render(); }, 'ssub'); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; setupDealMenu(); $('#sum').onchange = () => { if($('#sum').checked){ $('#ssum').checked = false; sumReset(); } drawChart(); render(); }; $('#ssum').onchange = () => { if($('#ssum').checked){ $('#sum').checked = false; sumReset(); } drawChart(); render(); }; $('#top10').onchange = drawChart; $('#liveChk').onchange = toggleLive; $('#liveOnly').onchange = toggleLiveOnly;
+  $('#cq').oninput = () => { if($('#pastName').checked || S.pastHit) update(); else { tiles(); drawChart(); render(); } }; $('#pastName').onchange = () => { S.fpicked = []; S.fnone = false; update(); }; setupCatMenu(() => { drawChart(); tiles(); render(); }); setupCatMenu(() => { drawChart(); tiles(); render(); }, 'ssub'); $('#deal').onchange = () => { tiles(); drawChart(); render(); }; setupDealMenu(); $('#sum').onchange = () => { if($('#sum').checked){ $('#ssum').checked = false; sumReset(); } drawChart(); render(); }; $('#ssum').onchange = () => { if($('#ssum').checked){ $('#sum').checked = false; sumReset(); } drawChart(); render(); }; $('#top10').onchange = drawChart; $('#liveChk').onchange = toggleLive; $('#liveOnly').onchange = toggleLiveOnly;
   $('#xlsx').onclick = downloadXlsx;
   // 랭킹 표 위 버튼: 지금 표에 보이는 순서대로 상위 5개 선택(기본 자동 선택과 같은 개수) / 모두 선택 해제 (검색 중이면 검색 결과 안에서)
   const setPick = ids => { if(!S.cur) return;
@@ -1384,7 +1416,7 @@ async function init(){
   // 기본값: 최근 1일 (어제 9시 ~ 가장 최근 수집)
   const resetRange = () => setRange(Math.max(at10(last) - DAY, first), last);
   // 초기화: 기간과 함께 톡딜상품 여부/세부 카테고리/검색어도 처음 상태로
-  $('#reset').onclick = () => { $('#deal').value = ''; syncDeal(); $('#liveOnly').checked = false; S.csub = []; S.ssub = []; $('#cq').value = ''; resetRange(); };
+  $('#reset').onclick = () => { $('#deal').value = ''; syncDeal(); $('#liveOnly').checked = false; S.csub = []; S.ssub = []; $('#cq').value = ''; $('#pastName').checked = false; resetRange(); };
   resetRange();
 }
 init();

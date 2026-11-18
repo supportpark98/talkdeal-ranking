@@ -578,7 +578,10 @@ def main():
                                "rank": sum(1 for r in rows if r.get("rank") is None)}
             filled = fill_max_benefit(rows, mx_cache)
             save_snapshot(args.out, c["key"], t_iso, data.get("aggregatedAt"), rows, metas, anomaly)
-            print(f"{c['name']}: {len(rows)}개 (집계 {data.get('aggregatedAt')}, 최대혜택가 보충 {filled}개)")
+            # 최대혜택가가 끝내 비면 대시보드는 그 행의 추정매출을 톡딜가로 계산하고 * 표시를 한다 (수집은 계속)
+            no_mx = sum(1 for r in rows if r.get("ordering") is not None and r.get("maxBenefitPrice") is None)
+            print(f"{c['name']}: {len(rows)}개 (집계 {data.get('aggregatedAt')}, 최대혜택가 보충 {filled}개"
+                  + (f", 최대혜택가 없음 {no_mx}개(추정매출은 톡딜가로)" if no_mx else "") + ")")
         except Exception as e:  # noqa: BLE001
             failed.append(c["key"])
             info["error"] = str(e)

@@ -233,6 +233,7 @@ tbody tr.sel{background:var(--sel)}
 .pname{}
 .strike{color:var(--muted);text-decoration:line-through}
 .benefit{font-weight:700}
+.fbmark{color:var(--muted);font-weight:400;margin-left:1px;cursor:help}
 .bold{font-weight:700}
 .num .delta{font-weight:400}
 .small{font-size:12px;color:var(--muted);white-space:nowrap}
@@ -348,7 +349,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 24px
   매일 9시, 16시, 18시, 23시 집계분을 자동 수집 · 출처: 카카오 톡딜 랭킹<br>
   카카오가 정각 집계를 약 40분 뒤에 반영해서, 실제 수집은 각 정각의 약 50분 뒤에 이뤄집니다.<br>
   <span id="since"></span><br>
-  추정매출 = 수집할 때마다 늘어난 주문수 × 그때의 톡딜가를 더한 값 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로, 옵션별 가격 차이는 반영되지 않은 추정치)<br>
+  추정매출 = 수집할 때마다 늘어난 주문수 × 그때의 최대혜택가를 더한 값 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로, 옵션별 가격 차이는 반영되지 않은 추정치). 추정매출 옆 * = 최대혜택가가 수집되지 않은 시점이 있어 그 부분은 톡딜가로 계산<br>
   일평균 = 주문수(추정매출) ÷ 행사 일차 (딜 오픈일부터 수집 시점까지, 오픈 당일 = 1일차)<br>
   종료 = 조회 기간 중 진행됐지만 종료 시점에는 끝난 딜. 딜 정보·추정매출·주문수·가격은 그 딜의 마지막 수집값<br>
   순위권 밖 = 조회 기간 중 순위에 있었지만 종료 시점에는 100위 밖으로 밀린 딜. 딜 정보·추정매출·주문수·가격은 순위권 안에 있던 마지막 수집값<br>
@@ -563,22 +564,24 @@ async function ensureMonths(s, e){
     S.snaps = [...keep.values()].sort((a,b)=>a.t-b.t); }
   accumulateSales(S.snaps);
 }
-// 추정매출은 수집마다 '늘어난 주문수 × 그때 톡딜가'를 더해 간다 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로).
+// 추정매출은 수집마다 '늘어난 주문수 × 그때 최대혜택가'를 더해 간다 (가격이 바뀌어도 이미 팔린 주문은 예전 가격으로).
+// 최대혜택가가 없는 수집값(첫날 11/8 일부 상품)은 그때 톡딜가로 대신 계산하고 salesFb=true로 표시한다.
 // 처음 보이는 시점에는 그때까지 쌓인 주문 전체를 그때 가격으로 계산하고, 주문수가 줄면(새 딜) 처음부터 다시 쌓는다.
-// 추정매출: 수집마다 (늘어난 주문수 × 그때 톡딜가)를 더한다.
 // 행사 구분은 딜 오픈일자 기준. 오픈일자가 바뀌면 새 행사로 보고 0부터 다시 쌓는다.
 // 같은 행사 안에서 주문수가 줄면(옵션 변경 초기화, 취소 등) 매출은 그대로 두고 줄어든 수를 새 기준으로 삼는다.
 // 오픈일자가 없는 옛 데이터는 예전처럼 주문수가 줄면 새 행사로 본다.
 function accumulateSales(snaps){
   const st = new Map();
   snaps.forEach(sn => sn.rows.forEach(o => {
-    const price = o.price;
+    const price = o.maxBenefitPrice ?? o.price;
     if(price == null || o.ordering == null){ o.sales = null; return; }
+    const fb = o.maxBenefitPrice == null;
     const k = String(o.productId), p = st.get(k);
     const known = p && p.start && o.dealStart;
     const isNew = !p || (known ? p.start !== o.dealStart : o.ordering < p.ord);
     const acc = isNew ? price * o.ordering : p.acc + Math.max(0, o.ordering - p.ord) * price;
-    st.set(k, {ord: o.ordering, acc, start: o.dealStart}); o.sales = acc;
+    const anyFb = isNew ? fb : p.fb || (fb && o.ordering > p.ord);
+    st.set(k, {ord: o.ordering, acc, start: o.dealStart, fb: anyFb}); o.sales = acc; o.salesFb = anyFb || undefined;
   }));
 }
 
@@ -608,7 +611,7 @@ async function update(){
   { const last = S.inRange[S.inRange.length-1];
     S.cur = {...last, rows: last.rows.map(r => ({...r}))};
     // 종료 시점엔 딜이 끝나 딜 정보가 비어 있어도, 기간 안에 딜이 진행됐으면 그 딜의 마지막 수집값으로 채운다 (표에 '딜 종료' 표시)
-    const DEAL_KEYS = ['price','discountRate','ordering','originalPrice','maxBenefitPrice','liveStartAt','dealStart','dealEnd','sales'];
+    const DEAL_KEYS = ['price','discountRate','ordering','originalPrice','maxBenefitPrice','liveStartAt','dealStart','dealEnd','sales','salesFb'];
     S.cur.rows.forEach(r => {
       if(r.ordering != null) return;
       // 조회 기간 앞의 수집분까지 거슬러 올라가 그 상품의 가장 최근 딜 값을 찾는다 (예: 11/11 9시만 볼 때 전날 23시 값)
@@ -818,7 +821,7 @@ function render(){
       <td class="num bold ctr">${r.dealStartMs ? `${mdLab(r.dealStartMs)}<span class="delta same">${pad(kparts(r.dealStartMs).h)}:${pad(new Date(r.dealStartMs + KST).getUTCMinutes())}</span>` : '-'}</td>
       <td class="num bold ctr">${r.dealEndMs ? `${mdLab(r.dealEndMs)}<span class="delta same">${pad(kparts(r.dealEndMs).h)}:${pad(new Date(r.dealEndMs + KST).getUTCMinutes())}</span>` : '-'}</td>
       <td class="num bold ctr">${r.liveMs ? `${mdLab(r.liveMs)}<span class="delta same">${pad(kparts(r.liveMs).h)}:${pad(new Date(r.liveMs + KST).getUTCMinutes())}</span>${r.liveSales != null ? `<span class="delta same">(+${Math.round(r.liveSales/1e6).toLocaleString('ko-KR')}백만)</span>` : ''}` : '-'}</td>
-      <td class="num bold">${r.sales!=null ? won(r.sales)+'원' : '-'}${deltaHTML(r.dSales, won)}${r.avgSales!=null ? `<span class="delta same">(일평균 ${won(r.avgSales)}원)</span>` : ''}</td>
+      <td class="num bold">${r.sales!=null ? won(r.sales)+'원'+(r.salesFb ? '<span class="fbmark" title="최대혜택가가 수집되지 않은 시점이 있어 그 부분은 톡딜가로 계산한 값">*</span>' : '') : '-'}${deltaHTML(r.dSales, won)}${r.avgSales!=null ? `<span class="delta same">(일평균 ${won(r.avgSales)}원)</span>` : ''}</td>
       <td class="num bold">${fmt(r.ordering)}${deltaHTML(r.dOrdering, fmt)}${r.avgOrdering!=null ? `<span class="delta same">(일평균 ${fmt(r.avgOrdering)})</span>` : ''}</td>
       <td class="num strike">${r.originalPrice && r.originalPrice !== r.price ? fmt(r.originalPrice)+'원' : '-'}</td>
       <td class="num">${fmt(r.price)}원</td>
@@ -1269,11 +1272,11 @@ async function downloadXlsx(){
       '추정매출':r.sales, '추정매출 증감':r.dSales, '일평균 추정매출':r.avgSales!=null?Math.round(r.avgSales):null,
       '주문수':r.ordering, '주문수 증감':r.dOrdering, '일평균 주문':r.avgOrdering!=null?Math.round(r.avgOrdering):null,
       '정상가':r.originalPrice, '톡딜가':r.price, '최대혜택가':r.maxBenefitPrice, '할인율(%)':r.discountRate,
-      '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':r.url}));
+      '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':r.url, '추정매출 비고':r.salesFb ? '최대혜택가 없는 구간은 톡딜가로 계산' : ''}));
     const sheet2 = [];
     S.inRange.forEach(s => s.rows.forEach(r => { const p = product(r.productId); sheet2.push({'수집시각':slotLab(s.t), '순위':r.rank, '상품명':p.name, '스토어명':p.brand, '카테고리':p.category,
       '톡딜가':r.price, '할인율(%)':r.discountRate, '주문수':r.ordering, '추정매출':r.sales,
-      '정상가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '라이브 일자':dt(ymd(r.liveStartAt)), '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':p.url}); }));
+      '정상가':r.originalPrice, '최대혜택가':r.maxBenefitPrice, '라이브 일자':dt(ymd(r.liveStartAt)), '누적판매':r.totalSaleCount, '리뷰수':r.reviewCount, '만족률(%)':r.satisfaction, '상품ID':r.productId, '링크':p.url, '추정매출 비고':r.salesFb ? '최대혜택가 없는 구간은 톡딜가로 계산' : ''}); }));
     const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.json_to_sheet(sheet1), ws2 = XLSX.utils.json_to_sheet(sheet2);
     ws1['!cols'] = [6,6,50,14,14,17,10,17,17,12,12,12,14,9,10,10,10,10,10,8,9,8,8,11,45].map(w=>({wch:w}));

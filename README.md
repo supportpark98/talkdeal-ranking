@@ -43,6 +43,24 @@
 메일 설정은 저장소 Settings > Secrets and variables > Actions의 Secret `MAIL_USERNAME`(보내는 Gmail), `MAIL_PASSWORD`(Gmail 앱 비밀번호), `MAIL_TO`(받는 주소, 쉼표로 구분)입니다.
 테스트 메일: Actions > 수집 상태 점검 > Run workflow.
 
+## 수집 오류 자동 분석·수정
+
+수집이 실패하면(수집 이상 메일이 오는 경우 포함) `.github/workflows/autofix.yml`이 자동으로 돌아서
+Claude가 실패 로그를 읽고 원인을 분석합니다.
+
+- 일시적 문제(네트워크 순간 끊김 등): 코드를 건드리지 않고 분석 결과만 메일로 보냅니다.
+- 코드를 고쳐야 하는 문제: 고친 코드를 실제로 돌려 확인한 뒤 수정 PR을 열고, 메일로 PR 주소를 보냅니다. **합치기(merge)는 직접** 합니다.
+- 사람이 판단해야 하는 문제: 해야 할 일을 메일로 알려 줍니다.
+- 앞서 연 자동 수정 PR이 아직 열려 있으면 새 분석은 건너뜁니다 (같은 PR이 여러 개 생기지 않게).
+- Claude는 `scripts/`, `index.html`, `README.md`만 고칠 수 있고, `data/`와 `.github/`는 건드리지 않습니다. 분석 지시문은 `.github/autofix/prompt.md`.
+
+설정:
+1. Anthropic API 키를 발급받아 저장소 Secret `ANTHROPIC_API_KEY`에 넣습니다. 없으면 자동 분석은 조용히 건너뜁니다.
+2. 저장소 Settings > Actions > General > Workflow permissions에서 **Allow GitHub Actions to create and approve pull requests**를 켭니다 (수정 PR을 열기 위해 필요).
+3. (선택) 모델을 바꾸려면 저장소 Variable `AUTOFIX_MODEL`을 설정합니다. 기본은 `claude-opus-5-5`.
+
+테스트: Actions > 수집 오류 자동 분석 > Run workflow (실행 번호를 비우면 가장 최근 실패한 수집을 분석).
+
 ## 직접 실행
 
 ```bash

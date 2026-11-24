@@ -1,0 +1,183 @@
+name: 수집 오류 자동 분석
+
+# "톡딜 랭킹 수집"이 실패하면 Claude가 실패 로그를 읽고 원인을 분석한다.
+# - 일시적 문제(네트워크 순간 끊김 등)면 코드를 건드리지 않고 분석 결과만 메일로 보낸다
+# - 코드를 고쳐야 하면 수정 PR을 열고 메일로 알린다. 합치기(merge)는 사람이 직접 한다
+# 필요한 Secret: ANTHROPIC_API_KEY (없으면 이 워크플로는 아무것도 안 하고 끝난다)
+# 선택 Variable: AUTOFIX_MODEL (기본 claude-opus-5-5)
+
+on:
+  workflow_run:
+    workflows: ["톡딜 랭킹 수집"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "분석할 수집 실행 번호 (비우면 가장 최근 실패한 실행)"
+        required: false
+        default: ""
+
+concurrency:
+  group: autofix
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.head_branch == 'main' &&
+       contains(fromJSON('["failure","timed_out","cancelled"]'), github.event.workflow_run.conclusion))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # 분석 단계는 읽기 권한만. 수정 PR은 다음 job(publish)에서 만든다
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      ran: ${{ steps.prep.outputs.ran }}
+      run_id: ${{ steps.prep.outputs.run_id }}
+      skip_reason: ${{ steps.prep.outputs.skip_reason }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 30
+
+      - name: 분석 준비
+        id: prep
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+          INPUT_RUN: ${{ inputs.run_id }}
+          EVENT_RUN: ${{ github.event.workflow_run.id }}
+        run: |
+          mkdir -p autofix_in autofix_out
+          RUN_ID="${EVENT_RUN:-$INPUT_RUN}"
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list --workflow collect.yml --status failure --limit 1 --json databaseId -q '.[0].databaseId')
+          fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::warning::ANTHROPIC_API_KEY Secret이 없어 자동 분석을 건너뜁니다"
+            echo "ran=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -z "$RUN_ID" ]; then
+            echo "분석할 실패 실행이 없습니다"; echo "ran=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # 앞서 연 자동 수정 PR이 아직 열려 있으면 같은 문제로 PR을 또 만들지 않도록 건너뛴다
+          OPEN=$(gh pr list --state open --json number,headRefName \
+            -q '[.[] | select(.headRefName | startswith("autofix/"))] | map(.number) | join(",")')
+          if [ -n "$OPEN" ]; then
+            echo "skip_reason=이미 열려 있는 자동 수정 PR(#$OPEN)이 있어 새 분석을 건너뛰었습니다. 그 PR을 먼저 확인해 주세요." >> "$GITHUB_OUTPUT"
+            echo "ran=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          gh run view "$RUN_ID" --json databaseId,conclusion,createdAt,event,url,displayTitle > autofix_in/run.json
+          gh run view "$RUN_ID" --log-failed 2>/dev/null | tail -n 2500 > autofix_in/failed.log || true
+          if [ ! -s autofix_in/failed.log ]; then
+            gh run view "$RUN_ID" --log 2>/dev/null | tail -n 2500 > autofix_in/failed.log || true
+          fi
+          gh run list --workflow collect.yml --limit 20 \
+            --json createdAt,conclusion,event -q '.[] | "\(.createdAt) \(.event) \(.conclusion)"' > autofix_in/recent_runs.txt
+          echo "ran=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+        if: steps.prep.outputs.ran == 'true'
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        if: steps.prep.outputs.ran == 'true'
+        with:
+          node-version: "22"
+
+      - name: Claude로 원인 분석·수정
+        if: steps.prep.outputs.ran == 'true'
+        timeout-minutes: 20
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL: ${{ vars.AUTOFIX_MODEL || 'claude-opus-5-5' }}
+          GH_TOKEN: ""
+        run: |
+          npm install -g @anthropic-ai/claude-code >/dev/null 2>&1
+          claude -p "$(cat .github/autofix/prompt.md)" \
+            --model "$MODEL" \
+            --max-turns 40 \
+            --permission-mode acceptEdits \
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(python:*),Bash(python3:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(mkdir:*)" \
+            | tee autofix_out/claude.txt || echo "::warning::Claude 실행이 오류로 끝났습니다"
+          # 허용한 범위(scripts, index.html, README.md)의 변경만 수정안으로 남긴다
+          git diff -- scripts index.html README.md > autofix_out/fix.patch
+          echo "--- 수정안 ---"; cat autofix_out/fix.patch
+
+      - uses: actions/upload-artifact@v4
+        if: steps.prep.outputs.ran == 'true'
+        with:
+          name: autofix
+          path: autofix_out/
+          retention-days: 14
+
+  publish:
+    needs: analyze
+    if: always() && needs.analyze.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v4
+        if: needs.analyze.outputs.ran == 'true'
+        with:
+          name: autofix
+          path: autofix_out
+
+      - name: 수정 PR 만들기
+        id: pr
+        if: needs.analyze.outputs.ran == 'true'
+        env:
+          RUN_ID: ${{ needs.analyze.outputs.run_id }}
+        run: |
+          VERDICT=$(python -c "import json;print(json.load(open('autofix_out/result.json',encoding='utf-8')).get('verdict',''))" 2>/dev/null || true)
+          echo "판단: ${VERDICT:-없음}"
+          if [ "$VERDICT" != "fix" ] || [ ! -s autofix_out/fix.patch ]; then exit 0; fi
+          python scripts/autofix_report.py pr-body --dir autofix_out --run-id "$RUN_ID" > /tmp/pr_body.md
+          TITLE="자동 수정: $(python -c "import json;print(json.load(open('autofix_out/result.json',encoding='utf-8')).get('title','수집 오류 수정'))")"
+          BRANCH="autofix/run-$RUN_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git apply autofix_out/fix.patch
+          git add scripts index.html README.md
+          git commit -m "$TITLE"
+          git push origin "$BRANCH"
+          URL=$(gh pr create --base main --head "$BRANCH" --title "$TITLE" --body-file /tmp/pr_body.md)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          gh pr edit "$URL" --add-assignee "${{ github.repository_owner }}" || true
+
+      - name: 분석 결과 메일
+        if: always()
+        env:
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          RUN_ID: ${{ needs.analyze.outputs.run_id }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          SKIP_REASON: ${{ needs.analyze.outputs.skip_reason }}
+          RAN: ${{ needs.analyze.outputs.ran }}
+        run: |
+          # 키가 없어서 건너뛴 경우(이유 없음)에는 메일을 보내지 않는다
+          if [ "$RAN" != "true" ] && [ -z "$SKIP_REASON" ]; then exit 0; fi
+          python scripts/autofix_report.py mail --dir autofix_out --run-id "$RUN_ID" \
+            --pr-url "$PR_URL" --skip-reason "$SKIP_REASON"

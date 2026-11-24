@@ -140,7 +140,8 @@ def compose(problems, title):
     if run_url():
         lines.append(f"실행 기록: {run_url()}")
     lines += ["", "카테고리 하나만 문제면 나머지 카테고리는 정상 수집되고 있습니다.",
-              "같은 문제가 고쳐질 때까지 수집할 때마다 이 메일이 옵니다."]
+              "같은 문제가 고쳐질 때까지 수집할 때마다 이 메일이 옵니다.",
+              "자동 분석이 켜져 있으면(ANTHROPIC_API_KEY Secret) 몇 분 뒤 원인 분석 결과 메일이 따로 옵니다."]
     return "\n".join(lines)
 
 
@@ -165,6 +166,9 @@ def main():
     print("\n".join(problems))
     cats = sorted({p[1:p.index("]")] for p in problems})
     send(f"[톡딜 랭킹] 수집 이상: {', '.join(cats)}", compose(problems, "톡딜 랭킹 수집에서 이상이 발견되었습니다."))
+    if args.mode == "collect":
+        # 실행을 '실패'로 표시해서 자동 분석(autofix.yml)이 돌게 한다. 수집된 데이터는 앞 단계에서 이미 저장됨
+        sys.exit(1)
 
 
 if __name__ == "__main__":

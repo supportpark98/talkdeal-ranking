@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 run_report.json
 collect.log
+autofix_in/
+autofix_out/

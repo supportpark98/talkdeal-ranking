@@ -75,21 +75,32 @@ COLS = [
 ]
 
 
-def fetch(cat, size, retries=3, period="DAILY"):
-    url = API.format(cat=cat, size=size, period=period) + f"&_={int(time.time() * 1000)}"
+# 실패 시 다시 시도하기 전 기다리는 시간(초). 카카오 서버나 GitHub 실행 서버의 네트워크가 잠깐 끊기는 일이 있어서
+# 2·4초처럼 짧게 기다리면 같은 장애 안에서 재시도가 모두 끝나 버린다 (11/24 18:50 수집이 이렇게 실패). 넉넉히 기다린다.
+RETRY_WAITS = [5, 15, 30, 60]
+
+
+def fetch(cat, size, retries=len(RETRY_WAITS) + 1, period="DAILY"):
     last_err = None
     for attempt in range(retries):
+        # 재시도마다 주소의 시간값을 새로 붙여서 캐시된 실패 응답을 받지 않게 한다
+        url = API.format(cat=cat, size=size, period=period) + f"&_={int(time.time() * 1000)}"
         try:
             req = urllib.request.Request(url, headers=HEADERS)
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.load(resp)
             if not body.get("result"):
                 raise RuntimeError(f"API returned result=false: {str(body)[:300]}")
+            if attempt:
+                print(f"{cat}: {attempt + 1}번째 시도에서 성공")
             return body["data"]
         except Exception as e:  # noqa: BLE001
             last_err = e
-            time.sleep(2 ** (attempt + 1))
-    raise RuntimeError(f"{cat} 수집 실패: {last_err}")
+            if attempt + 1 < retries:
+                wait = RETRY_WAITS[min(attempt, len(RETRY_WAITS) - 1)]
+                print(f"::warning::{cat} 받기 실패({e}). {wait}초 뒤 다시 시도 ({attempt + 2}/{retries})")
+                time.sleep(wait)
+    raise RuntimeError(f"{cat} 수집 실패 ({retries}번 시도): {last_err}")
 
 
 # 랭킹 API는 일부 톡딜 상품의 최대혜택가(maxDiscountedPrice)를 빼고 보낸다 (랭킹 집계 뒤에 켜진 혜택 등).
@@ -490,6 +501,13 @@ def fetch_all(targets, size, out="data"):
         except Exception as e:  # noqa: BLE001
             FETCH_ERRORS[c["key"]] = str(e)
             print(f"::warning::{c['name']} 받기 실패: {e}")
+            # 처음 두 카테고리가 재시도까지 모두 실패하면 카카오 서버에 닿지 않는 상태로 보고 나머지는 시도하지 않는다
+            # (카테고리마다 몇 분씩 재시도하다 실행 제한 시간 50분을 넘기지 않도록)
+            if not raw and len(FETCH_ERRORS) >= 2:
+                for rest in targets:
+                    FETCH_ERRORS.setdefault(rest["key"], f"카카오 서버 응답 없음으로 건너뜀 (앞 카테고리 오류: {e})")
+                print("::warning::카카오 서버에 연결되지 않아 나머지 카테고리는 건너뜀")
+                break
     return raw
 
 
@@ -536,9 +554,14 @@ def main():
             write_report(skipped="이미 저장됨")
             return
         # 카카오가 아직 그 시각 집계를 반영하기 전이면(예: 9시 슬롯인데 집계가 8시) 저장하지 않고 다음 실행(백업)에 맡긴다
-        agg = str(fetch(targets[0]["key"], 1).get("aggregatedAt") or "")
         want = slot[0].replace("-", "") + f"{slot[1]:02d}"
-        if not agg.startswith(want):
+        try:
+            agg = str(fetch(targets[0]["key"], 1).get("aggregatedAt") or "")
+        except Exception as e:  # noqa: BLE001
+            # 집계 시각 확인 요청 하나가 실패해도 멈추지 않는다. 전체를 받아 본 뒤 받은 데이터의 집계 시각으로 확인한다
+            print(f"::warning::집계 시각 확인 실패({e}). 전체를 받아 보고 확인합니다")
+            agg = None
+        if agg is not None and not agg.startswith(want):
             print(f"집계 {agg}가 {slot[0]} {slot[1]}시 기준이 아니라 건너뜀")
             write_report(skipped="카카오 집계 반영 전")
             return
@@ -546,6 +569,17 @@ def main():
     mx_cache = {}
     # 먼저 전부 받아 두고, 카카오 집계가 이상해 보이면(진행 중인 상위 딜이 대거 사라짐) 5·10·15분 뒤에 다시 받는다
     raw = fetch_all(targets, args.size, args.out)
+    if args.skip_if_saved and agg is None:
+        got = next((raw[c["key"]] for c in targets if c["key"] in raw), None)
+        if got is None:
+            write_report(error="카카오 서버 응답 없음")
+            sys.exit("카카오 서버에 연결하지 못해 이번 수집은 저장하지 못함 (모든 카테고리 받기 실패). "
+                     "다음 예약 수집(백업 포함)에서 다시 시도합니다")
+        agg = str(got.get("aggregatedAt") or "")
+        if not agg.startswith(want):
+            print(f"집계 {agg}가 {slot[0]} {slot[1]}시 기준이 아니라 건너뜀")
+            write_report(skipped="카카오 집계 반영 전")
+            return
     anomaly = False
     if args.skip_if_saved:
         broken = broken_cats(args.out, targets, raw)
